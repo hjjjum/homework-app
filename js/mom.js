@@ -227,14 +227,21 @@ export function initMom() {
 
     const has = state.drafts.length > 0;
     if (els.draftCount) {
-      els.draftCount.textContent = has ? "보낼 항목 " + state.drafts.length + "개" : "";
-      els.draftCount.hidden = !has;
+      els.draftCount.textContent = has
+        ? "보낼 항목 " + state.drafts.length + "개"
+        : "위에 내용을 적고 \"항목 나누기\"를 누르면 보낼 항목이 여기에 나옵니다.";
     }
-    if (els.sendBar) els.sendBar.hidden = !has;
+    // 보내기 버튼은 항상 보인다. 보낼 게 없으면 눌리지 않을 뿐이다.
+    // (버튼이 통째로 사라지면 "보내기가 어디 있지?" 하고 헤매게 된다)
     if (els.sendBtn) {
-      els.sendBtn.disabled = state.sending;
-      els.sendBtn.textContent = state.sending ? "보내는 중..." : "보내기";
+      els.sendBtn.disabled = !has || state.sending;
+      els.sendBtn.textContent = state.sending
+        ? "보내는 중..."
+        : has
+        ? state.drafts.length + "개 보내기"
+        : "보내기";
     }
+    if (els.clearBtn) els.clearBtn.disabled = !has || state.sending;
   }
 
   function findDraft(key) {

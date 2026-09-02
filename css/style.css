@@ -220,6 +220,16 @@ h2 {
   color: var(--ink-soft);
 }
 
+.btn--ghost:disabled {
+  color: var(--ink-faint);
+  cursor: default;
+}
+
+/* 비활성 버튼은 눌리는 느낌을 주지 않는다 */
+.btn:disabled:active {
+  transform: none;
+}
+
 .btn--danger {
   background: var(--danger);
   color: #fff;
@@ -738,6 +748,11 @@ textarea.field {
   font-size: 14px;
   font-weight: 700;
   color: var(--ink-soft);
+}
+
+/* 보낼 항목이 없을 때의 안내 문구는 옅게 */
+.draft-count:not(:empty) {
+  line-height: 1.5;
 }
 
 .draft-list {
