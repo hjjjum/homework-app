@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>첫째 할 일</title>
+  <meta name="description" content="첫째 할 일" />
+  <meta name="theme-color" content="#10b981" />
+  <link rel="manifest" href="manifest-daughter1.json" />
+  <link rel="icon" href="icons/daughter-192.png" type="image/png" />
+  <link rel="apple-touch-icon" href="icons/daughter-180.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="첫째 할 일" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="app-header">
+      <h1>첫째 할 일</h1>
+      <div class="progress">
+        <p class="progress-text">
+          <span class="progress-count" id="progress-count">0/0 완료</span>
+          <span class="progress-percent" id="progress-percent">0%</span>
+        </p>
+        <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <div class="progress-fill" id="progress-fill"></div>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <!-- 카테고리 필터 탭은 app.js가 만든다 -->
+      <nav class="filters" id="filters" aria-label="카테고리 필터"></nav>
+
+      <section class="add">
+        <button type="button" class="btn btn--primary btn--block" id="add-toggle" aria-expanded="false" aria-controls="add-form">
+          + 할일 추가
+        </button>
+
+        <div class="add-form" id="add-form" hidden>
+          <label for="quick-input">할 일</label>
+          <textarea class="field" id="quick-input" rows="3" placeholder="수학 익힘책 32쪽"></textarea>
+          <p class="hint">여러 줄을 붙여넣으면 줄마다 하나씩 추가돼요.</p>
+
+          <span class="field-label" id="quick-category-label">카테고리</span>
+          <!-- 칩은 app.js가 만든다 -->
+          <div class="chip-group" id="quick-category" aria-labelledby="quick-category-label"></div>
+
+          <label for="quick-date">마감일 (선택)</label>
+          <input class="field" type="date" id="quick-date" />
+
+          <div class="add-actions">
+            <button type="button" class="btn btn--primary" id="quick-add-btn">추가</button>
+            <button type="button" class="btn btn--ghost" id="add-cancel">취소</button>
+          </div>
+        </div>
+      </section>
+
+      <ul class="todo-list" id="active-list"></ul>
+
+      <section class="completed-section" id="completed-section" hidden>
+        <button type="button" class="completed-toggle" id="toggle-completed" aria-expanded="false" aria-controls="completed-list">
+          완료한 일
+        </button>
+        <ul class="todo-list completed" id="completed-list" hidden></ul>
+        <button type="button" class="btn" id="delete-completed-btn" hidden>완료 항목 모두 지우기</button>
+      </section>
+
+      <p class="status" id="status" role="status" hidden></p>
+    </main>
+  </div>
+
+  <script type="module">
+    import { initApp } from "./js/app.js";
+    initApp("daughter1");
+  </script>
+
+  <script>
+    // PWA: 정적 파일 캐싱. 실패해도 앱 동작에는 영향이 없다.
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("./service-worker.js").catch((err) => {
+          console.warn("[pwa] 서비스워커 등록 실패:", err.message);
+        });
+      });
+    }
+  </script>
+</body>
+</html>

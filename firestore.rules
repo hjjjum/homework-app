@@ -1,0 +1,58 @@
+rules_version = '2';
+
+// ---------------------------------------------------------------------------
+// 이 앱이 사용하는 경로에만 읽기/쓰기를 허용하는 최소 규칙 초안.
+// 로그인(익명 포함) 여부와 관계없이 동작합니다.
+//
+// ⚠️ 주의: 아래 경로를 아는 사람은 누구나 읽고 쓸 수 있습니다.
+//    가족끼리 쓰는 앱이라 지금은 이렇게 두지만, 나중에 익명 인증을
+//    필수로 만들려면 각 allow 앞에 `request.auth != null &&` 를 붙이세요.
+// ---------------------------------------------------------------------------
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // students/{studentId} — 문서 자체는 쓰지 않지만 경로 제한을 위해 정의
+    match /students/{studentId} {
+
+      // daughter1, daughter2 두 개만 허용
+      function isKnownStudent() {
+        return studentId in ['daughter1', 'daughter2'];
+      }
+
+      allow read: if isKnownStudent();
+      allow write: if false;   // 학생 문서 자체는 만들거나 고치지 않음
+
+      // students/{studentId}/todos/{todoId}
+      match /todos/{todoId} {
+
+        function isValidTodo(d) {
+          return d.keys().hasOnly(
+                   ['title', 'category', 'completed', 'date',
+                    'memo', 'addedBy', 'source', 'createdAt'])
+              && d.keys().hasAll(['title', 'category', 'completed'])
+              && d.title is string
+              && d.title.size() > 0 && d.title.size() <= 200
+              && d.category in ['숙제', '개인스케줄', '공부']
+              && d.completed is bool
+              && (!('date' in d) || (d.date is string && d.date.size() <= 30))
+              && (!('memo' in d) || (d.memo is string && d.memo.size() <= 1000))
+              && (!('addedBy' in d) || d.addedBy in ['mom', 'self'])
+              // source = 어떤 입력 방식으로 들어왔는지. 새 입력 소스가 추가돼도
+              // 규칙을 다시 배포하지 않도록 값 목록 대신 타입/길이만 본다.
+              && (!('source' in d) || (d.source is string && d.source.size() <= 40))
+              && (!('createdAt' in d) || d.createdAt is timestamp);
+        }
+
+        allow read:   if isKnownStudent();
+        allow create: if isKnownStudent() && isValidTodo(request.resource.data);
+        allow update: if isKnownStudent() && isValidTodo(request.resource.data);
+        allow delete: if isKnownStudent();
+      }
+    }
+
+    // 그 밖의 모든 경로는 차단
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

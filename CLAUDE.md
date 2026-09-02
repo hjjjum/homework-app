@@ -1,0 +1,128 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## 프로젝트 개요
+
+두 딸(daughter1, daughter2)이 각자 쓰는 할일 화면과, 엄마가 숙제/일정을 넣어주는 입력 화면으로 이루어진 가족용 할일 관리 앱.
+
+**바닐라 JS 전용 — npm 의존성도, 빌드 도구도, 프레임워크도 쓰지 않는다.** Firebase SDK는 CDN에서 ES 모듈로 직접 import한다. 이 제약은 사용자가 명시한 것이므로 번들러나 프레임워크 도입을 제안하지 말 것.
+
+## 개발 명령
+
+```bash
+npx -y serve . -l 3000        # 로컬 서버 (필수 — 아래 참고)
+```
+
+`file://`로 열면 동작하지 않는다. ES 모듈이 CORS로 차단되기 때문에 반드시 http로 서빙해야 한다.
+접속: `http://localhost:3000/daughter1.html`, `daughter2.html`, `mom.html`
+
+테스트 프레임워크·린터·빌드 스텝은 없다.
+
+### Firestore 규칙 배포
+
+`firestore.rules`를 고쳤으면 반드시 배포해야 실제로 적용된다. 편집만으로는 아무 효과가 없다.
+
+```bash
+npx -y firebase-tools deploy --only firestore:rules
+```
+
+firebase CLI 로그인이 인터랙티브라 에이전트가 직접 못 하는 경우, Firebase 콘솔 →
+Firestore → 규칙 탭에 파일 내용을 붙여넣고 "게시"해도 동일하다.
+
+### 데이터 확인 / 규칙 검증
+
+브라우저 없이 Firestore REST API로 읽기·쓰기·규칙 거부를 확인할 수 있다. 규칙을 고친 뒤
+의도대로 막히는지 검증할 때 유용하다 (인증 없이 apiKey만으로 호출 = 익명 미로그인 상태와 동일).
+
+```bash
+node -e 'fetch("https://firestore.googleapis.com/v1/projects/homework-assistant-fcc6c/databases/(default)/documents/students/daughter1/todos?key=<apiKey>").then(r=>r.json()).then(j=>console.log(JSON.stringify(j,null,2)))'
+```
+
+규칙에 막히면 403이 돌아온다.
+
+## 아키텍처
+
+의존 방향은 단방향이다:
+
+```
+daughter*.html  →  js/app.js  ┐
+mom.html        →  js/mom.js  ┤→  js/db.js  →  js/firebase-config.js  →  CDN (gstatic firebasejs 12.0.0)
+                              └→  js/todo-logic.js (순수 함수)
+                              └→  js/sources/*.js  (입력 파싱)
+```
+
+- **js/firebase-config.js** — 앱/Firestore/Auth 인스턴스를 만들어 export하는 유일한 지점.
+  Firestore는 `initializeFirestore` + `persistentLocalCache(persistentMultipleTabManager())`로
+  오프라인 지속성을 켠 상태로 생성된다. `getFirestore()`를 따로 호출하면 이 설정이 무시되므로
+  절대 쓰지 말고 여기서 export한 `db`를 import할 것. (구 API `enableIndexedDbPersistence()`도 쓰지 않는다.)
+  익명 로그인은 붙어 있지만 실패해도 앱이 죽지 않도록 `authReady` Promise가 항상 resolve된다.
+- **js/db.js** — Firestore에 접근하는 유일한 계층. HTML에서 Firestore SDK를 직접 import하지 말고
+  반드시 이 모듈의 함수를 쓴다. `addTodo` / `updateTodo` / `deleteTodo` / `deleteCompletedTodos` /
+  `listenTodos`(구독 해제 함수를 반환).
+- **js/app.js** — daughter1/daughter2 화면의 공용 로직. 두 HTML은 `initApp(studentId)`에 넘기는
+  값만 다르고 나머지는 완전히 같다. **화면별로 코드를 갈라놓지 말 것** — 분기가 필요하면 studentId를
+  인자로 받는 방식으로 처리한다.
+  순수 로직은 todo-logic.js와 sources/로 빠져 있다. 로직을 고칠 때는 `initApp` 안쪽이 아니라
+  그 모듈들에 넣는 편이 검증하기 쉽다.
+  `alert()` / `confirm()` / `prompt()`는 쓰지 않는다 — 브라우저 모달이 자동화 세션을 멈추게 하므로,
+  삭제 확인은 "한 번 더 누르기", 항목 수정은 인라인 폼으로 처리한다.
+- **js/todo-logic.js** — 두 화면이 함께 쓰는 순수 함수(`filterByCategory` / `splitByCompleted` /
+  `calcProgress` / `formatDue`)와 `CATEGORY_KEY`. DOM·Firestore에 의존하지 않으므로 Node에서
+  그대로 테스트할 수 있다. 진행률이나 정렬 규칙을 바꿀 일이 있으면 여기 한 곳만 고치면 두 화면에
+  같이 반영된다. app.js가 하위 호환을 위해 이것들을 다시 export 한다.
+- **js/sources/** — "할일 제목을 어디서 얻어오는가"를 담당하는 모듈들. 각 파일은
+  `{ id, label, parse }`를 default export 하고, `sources/index.js`의 `INPUT_SOURCES`에 등록된다.
+  mom.html의 "입력 방법" 토글은 이 목록을 그대로 그리므로, 자동 입력 방식을 추가하려면
+  `sources/auto-xxx.js` 파일 하나와 index.js의 import 한 줄이면 된다. 다른 코드는 손대지 않는다.
+- **js/mom.js** — 엄마 화면. 입력 탭(쓰기 전용)과 현황 보기 탭(읽기 전용) 두 개.
+  **현황 탭은 의도적으로 읽기 전용이다** — 목록에 button/input을 아예 만들지 않아서 구조적으로
+  체크나 수정이 불가능하다. 편의를 위해서라도 여기에 체크박스를 추가하지 말 것.
+  현황 탭을 처음 열 때만 `listenTodos`를 구독하고, 보는 딸이 바뀌면 이전 구독을 끊고 새로 건다.
+
+## 데이터 모델과 불변 조건
+
+컬렉션 경로: `students/{studentId}/todos/{todoId}`
+
+- `studentId`는 `"daughter1"` / `"daughter2"` 두 개뿐이다.
+- `students/{studentId}` 문서 자체에는 아무것도 쓰지 않는다 (규칙에서도 `allow write: if false`).
+  콘솔에서 이 문서가 기울임체로 보이는 건 정상이다.
+- todo 필드: `title`(string), `category`(`"숙제"|"개인스케줄"|"공부"`), `completed`(bool),
+  `date`(string, 선택), `memo`(string, 선택), `addedBy`(`"mom"|"self"`),
+  `source`(string, 어떤 입력 방식으로 들어왔는지 — 지금은 항상 `"manual"`),
+  `createdAt`(serverTimestamp)
+
+**필드를 추가/변경할 때는 세 곳을 함께 고쳐야 한다.** 하나라도 빠지면 쓰기가 403으로 조용히 실패한다:
+
+1. `js/db.js`의 `normalizeTodo()` (기본값·검증)
+2. `js/db.js`의 `updateTodo()` 안 `allowed` 배열 (허용 필드 화이트리스트)
+3. `firestore.rules`의 `isValidTodo()` — `hasOnly([...])`가 필드 화이트리스트라 새 필드는 여기 없으면 거부된다
+
+`listenTodos`는 `d.data({ serverTimestamps: "estimate" })`로 읽는다. 오프라인에서 방금 추가한 항목의
+`createdAt`이 `null`이 되어 정렬이 깨지는 걸 막기 위한 것이므로 그냥 `d.data()`로 바꾸지 말 것.
+
+## PWA / 서비스워커
+
+정적 파일은 `service-worker.js`가 캐싱한다. **Firestore 요청에는 절대 끼어들지 않는다** —
+SDK가 IndexedDB로 자체 오프라인 처리를 하고 있어서 서비스워커가 가로채면 동기화가 깨진다.
+`fetch` 핸들러의 origin 검사를 지우지 말 것.
+
+**파일을 고쳤으면 `CACHE_VERSION`을 올려야 한다.** 안 그러면 사용자 기기가 옛 파일을 계속 쓴다.
+
+캐시에 넣기 전 `withoutRedirect()`를 거치는 이유: 리다이렉트를 거친 응답은 화면 이동(navigate)
+요청에 쓸 수 없어서, 그대로 캐시하면 오프라인에서 흰 화면이 된다. 로컬 개발 서버(`serve`)가
+`/a.html` → `/a`로 보내기 때문에 실제로 겪는 문제다. 같은 이유로 `matchNavigation()`이
+확장자 없는 경로도 찾아본다.
+
+manifest는 화면마다 따로 있다(`manifest-daughter1/2`, `manifest-mom`). `start_url`과 이름이
+달라야 홈 화면 아이콘이 각자 자기 화면을 열기 때문이므로 하나로 합치지 말 것.
+
+## Firebase 프로젝트
+
+- 프로젝트 ID: `homework-assistant-fcc6c` (`.firebaserc`에 default로 지정됨)
+- Firestore 리전: `asia-northeast3` (서울) — 변경 불가
+- 익명 인증 활성화됨
+
+현재 보안 규칙은 **로그인 없이도** 위 경로에만 읽기/쓰기를 허용한다. 경로를 아는 사람은 누구나 접근
+가능하다는 뜻이므로, 공개 URL에 배포하게 되면 각 `allow` 앞에 `request.auth != null &&`를 붙인다
+(익명 로그인이 이미 붙어 있어 클라이언트 코드는 수정할 필요 없다).

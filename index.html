@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>우리집 할 일</title>
+  <meta name="description" content="가족용 할일 관리 앱" />
+  <meta name="theme-color" content="#10b981" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="apple-touch-icon" href="icons/daughter-180.png" />
+</head>
+<body>
+  <div class="app">
+    <header class="app-header">
+      <h1>우리집 할 일</h1>
+    </header>
+
+    <main>
+      <p class="hint">쓸 화면을 골라주세요. 휴대폰에서는 각 화면을 열고 홈 화면에 추가하면 앱처럼 쓸 수 있어요.</p>
+      <ul class="home-links">
+        <li><a class="home-link" href="daughter1.html">첫째 할 일</a></li>
+        <li><a class="home-link" href="daughter2.html">둘째 할 일</a></li>
+        <li><a class="home-link" href="mom.html">엄마 화면</a></li>
+      </ul>
+    </main>
+  </div>
+
+  <script type="module">
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("./service-worker.js").catch((err) => {
+        console.warn("[pwa] 서비스워커 등록 실패:", err.message);
+      });
+    }
+  </script>
+</body>
+</html>

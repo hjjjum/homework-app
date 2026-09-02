@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>엄마 화면</title>
+  <meta name="description" content="엄마 화면" />
+  <meta name="theme-color" content="#2563eb" />
+  <link rel="manifest" href="manifest-mom.json" />
+  <link rel="icon" href="icons/mom-192.png" type="image/png" />
+  <link rel="apple-touch-icon" href="icons/mom-180.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="엄마 화면" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="app app--wide">
+    <header class="app-header">
+      <h1>엄마 화면</h1>
+      <div class="mom-tabs" id="mom-tabs" role="tablist" aria-label="화면 전환">
+        <button type="button" class="mom-tab" data-tab="input" role="tab" aria-selected="true" aria-controls="panel-input">
+          입력
+        </button>
+        <button type="button" class="mom-tab" data-tab="watch" role="tab" aria-selected="false" aria-controls="panel-watch">
+          현황 보기
+        </button>
+      </div>
+    </header>
+
+    <main>
+      <!-- ================= 탭 1: 입력 ================= -->
+      <section id="panel-input" role="tabpanel" aria-label="입력">
+        <div class="card">
+          <span class="field-label" id="source-label">입력 방법</span>
+          <!-- 버튼은 mom.js가 js/sources/index.js 목록을 보고 만든다 -->
+          <div class="filters" id="source-picker" aria-labelledby="source-label"></div>
+          <p class="hint" id="source-hint">지금은 직접 입력만 쓸 수 있어요.</p>
+
+          <label for="raw-input">보낼 내용</label>
+          <textarea class="field field--tall" id="raw-input" rows="6"
+            placeholder="수학 익힘책 32쪽&#10;영어 단어 20개 외우기&#10;준비물: 물감, 붓"></textarea>
+          <p class="hint">한 줄에 하나씩 적거나, 알림장을 통째로 붙여넣으세요. 빈 줄은 알아서 넘어갑니다.</p>
+
+          <button type="button" class="btn btn--primary btn--block" id="split-btn">항목 나누기</button>
+        </div>
+
+        <p class="draft-count" id="draft-count" hidden></p>
+        <ul class="draft-list" id="draft-list"></ul>
+
+        <div class="send-bar" id="send-bar" hidden>
+          <button type="button" class="btn btn--primary" id="send-btn">보내기</button>
+          <button type="button" class="btn btn--ghost" id="clear-btn">모두 지우기</button>
+        </div>
+
+        <p class="status" id="input-status" role="status" hidden></p>
+      </section>
+
+      <!-- ================= 탭 2: 현황 보기 ================= -->
+      <section id="panel-watch" role="tabpanel" aria-label="현황 보기" hidden>
+        <!-- 딸 전환 버튼은 mom.js가 만든다 -->
+        <nav class="filters" id="student-tabs" aria-label="딸 선택"></nav>
+
+        <div class="progress">
+          <p class="progress-text">
+            <span class="progress-count" id="watch-progress-count">0/0 완료</span>
+            <span class="progress-percent" id="watch-progress-percent">0%</span>
+          </p>
+          <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+            <div class="progress-fill" id="watch-progress-fill"></div>
+          </div>
+          <div class="cat-progress" id="category-progress"></div>
+        </div>
+
+        <p class="notice">이 화면은 확인용이며, 체크와 수정은 각자 딸의 화면에서만 가능합니다.</p>
+
+        <ul class="watch-list" id="watch-list"></ul>
+
+        <p class="status" id="watch-status" role="status" hidden></p>
+      </section>
+    </main>
+  </div>
+
+  <script type="module">
+    import { initMom } from "./js/mom.js";
+    initMom();
+  </script>
+
+  <script>
+    // PWA: 정적 파일 캐싱. 실패해도 앱 동작에는 영향이 없다.
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("./service-worker.js").catch((err) => {
+          console.warn("[pwa] 서비스워커 등록 실패:", err.message);
+        });
+      });
+    }
+  </script>
+</body>
+</html>
