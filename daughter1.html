@@ -14,12 +14,14 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="첫째 할 일" />
   <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/theme-sticker.css" />
 </head>
 <body>
   <div class="app">
     <header class="app-header">
       <h1>첫째 할 일</h1>
       <div class="progress">
+        <div id="progress-ring"></div>
         <p class="progress-text">
           <span class="progress-count" id="progress-count">0/0 완료</span>
           <span class="progress-percent" id="progress-percent">0%</span>
@@ -69,10 +71,11 @@
             <button type="button" class="btn btn--ghost" id="add-cancel">취소</button>
           </div>
         </div>
-        </div>
       </section>
 
       <ul class="todo-list" id="active-list"></ul>
+
+      <section id="reward-panel" aria-label="스티커와 연속 달성"></section>
 
       <section class="completed-section" id="completed-section" hidden>
         <button type="button" class="completed-toggle" id="toggle-completed" aria-expanded="false" aria-controls="completed-list">

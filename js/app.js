@@ -27,6 +27,8 @@ import {
 import { parseManualInput } from "./sources/manual-input.js";
 import { INPUT_SOURCES, getSource } from "./sources/index.js";
 import { recognizeImage, imageFromPaste, parseDueDate } from "./ocr.js";
+import { initRewards } from "./rewards.js";
+import { createSticker } from "./stickers.js";
 
 // 순수 로직은 todo-logic.js, 입력 파싱은 sources/ 아래로 분리되어 있다.
 // 콘솔이나 다른 화면에서 쓰기 편하도록 여기서 다시 내보낸다.
@@ -91,6 +93,9 @@ export function initApp(studentId) {
     confirmingId: null, // 삭제 확인 대기 중인 항목
     confirmingAll: false,
   };
+
+  // 성취 연출(진행 링·스티커 판·축하). Firestore는 건드리지 않고 이 기기에만 저장한다.
+  const rewards = initRewards(studentId);
 
   // --- 작은 도우미 ---------------------------------------------------------
 
@@ -171,6 +176,7 @@ export function initApp(studentId) {
 
   function renderProgress() {
     const p = calcProgress(state.todos)[ALL];
+    rewards.setProgress(p);
     if (els.progressCount) els.progressCount.textContent = p.완료 + "/" + p.총 + " 완료";
     if (els.progressPercent) els.progressPercent.textContent = p.비율 + "%";
     if (els.progressFill) {
@@ -259,7 +265,7 @@ export function initApp(studentId) {
     return li;
   }
 
-  function renderItem(todo) {
+  function renderItem(todo, index) {
     if (state.editingId === todo.id) return renderEditForm(todo);
     if (state.confirmingId === todo.id) return renderDeleteConfirm(todo);
 
@@ -274,7 +280,12 @@ export function initApp(studentId) {
     input.dataset.action = "toggle";
     input.dataset.id = todo.id;
     input.setAttribute("aria-label", todo.title + " 완료");
-    check.append(input, makeEl("span", "check-box"));
+    // 완료되면 CSS가 점선 동그라미를 감추고 이 스티커를 도장처럼 찍는다
+    check.append(
+      input,
+      makeEl("span", "check-box"),
+      createSticker(rewards.stickerFor(index || 0), 34)
+    );
 
     // 본문 전체가 버튼 = 항목을 탭하면 수정
     const main = makeEl("button", "todo-main");
@@ -355,7 +366,7 @@ export function initApp(studentId) {
       container.appendChild(makeEl("li", "empty", emptyText));
       return;
     }
-    for (const todo of todos) container.appendChild(renderItem(todo));
+    todos.forEach((todo, i) => container.appendChild(renderItem(todo, i)));
   }
 
   function render() {
@@ -404,6 +415,7 @@ export function initApp(studentId) {
     }
     try {
       await updateTodo(studentId, id, changes);
+      if (completed) rewards.onCompleted();
       setStatus(completed ? "잘했어요!" : "다시 할 일로 되돌렸어요.");
     } catch (err) {
       reportError("완료 표시", err);
@@ -420,6 +432,7 @@ export function initApp(studentId) {
     const completed = items.every((it) => it.done);
     try {
       await updateTodo(studentId, id, { items, completed });
+      if (done) rewards.onCompleted();
       setStatus(completed ? "숙제 하나를 다 끝냈어요!" : "");
     } catch (err) {
       reportError("항목 체크", err);
