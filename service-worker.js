@@ -10,7 +10,7 @@
 // 파일을 고친 뒤 배포할 때는 아래 CACHE_VERSION을 올려야 사용자에게 새 버전이 간다.
 // ---------------------------------------------------------------------------
 
-const CACHE_VERSION = "v5";
+const CACHE_VERSION = "v9";
 const CACHE_NAME = "homework-app-" + CACHE_VERSION;
 
 /** 설치할 때 미리 받아둘 파일들. 상대 경로라 GitHub Pages 하위 경로에서도 동작한다. */
@@ -28,6 +28,8 @@ const PRECACHE = [
   "./js/todo-logic.js",
   "./js/sources/index.js",
   "./js/sources/manual-input.js",
+  "./js/sources/whole-message.js",
+  "./js/sources/academy-message.js",
   "./manifest-daughter1.json",
   "./manifest-daughter2.json",
   "./manifest-mom.json",

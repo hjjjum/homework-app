@@ -15,10 +15,13 @@ import {
   ALL,
   FILTERS,
   CATEGORY_KEY,
+  SUBJECT_KEY,
   filterByCategory,
   splitByCompleted,
   calcProgress,
   formatDue,
+  countTodo,
+  allItemsDone,
 } from "./todo-logic.js";
 import { parseManualInput } from "./sources/manual-input.js";
 
@@ -28,10 +31,13 @@ export {
   ALL,
   FILTERS,
   CATEGORY_KEY,
+  SUBJECT_KEY,
   filterByCategory,
   splitByCompleted,
   calcProgress,
   formatDue,
+  countTodo,
+  allItemsDone,
 } from "./todo-logic.js";
 export { parseManualInput } from "./sources/manual-input.js";
 
@@ -175,8 +181,14 @@ export function initApp(studentId) {
 
     const form = makeEl("div", "edit-form");
 
-    const title = document.createElement("input");
-    title.type = "text";
+    // 여러 줄짜리 제목(학원 알림장 등)을 <input>에 넣으면 줄바꿈이 지워진다.
+    const multiline = todo.title.includes("\n");
+    const title = document.createElement(multiline ? "textarea" : "input");
+    if (multiline) {
+      title.rows = Math.min(todo.title.split("\n").length + 1, 10);
+    } else {
+      title.type = "text";
+    }
     title.className = "field";
     title.value = todo.title;
     title.dataset.field = "title";
@@ -264,6 +276,12 @@ export function initApp(studentId) {
     main.appendChild(makeEl("span", "todo-title", todo.title));
 
     const meta = makeEl("span", "todo-meta");
+    // 과목이 있으면 과목을 먼저 보여준다 (수학/영어/과학...)
+    if (todo.subject && todo.subject !== "기타") {
+      meta.appendChild(
+        makeEl("span", "badge badge--subject subject--" + SUBJECT_KEY[todo.subject], todo.subject)
+      );
+    }
     meta.appendChild(
       makeEl("span", "badge badge--" + CATEGORY_KEY[todo.category], todo.category)
     );
@@ -271,6 +289,13 @@ export function initApp(studentId) {
     const due = formatDue(todo.date);
     if (due) meta.appendChild(makeEl("span", "due due--" + due.tone, due.text));
     if (todo.addedBy === "mom") meta.appendChild(makeEl("span", "from-mom", "엄마가 보냄"));
+
+    const counts = countTodo(todo);
+    if (Array.isArray(todo.items) && todo.items.length > 0) {
+      meta.appendChild(
+        makeEl("span", "item-count", counts.완료 + "/" + counts.총)
+      );
+    }
     if (todo.memo) meta.appendChild(makeEl("span", "memo", todo.memo));
 
     main.appendChild(meta);
@@ -282,7 +307,35 @@ export function initApp(studentId) {
     del.setAttribute("aria-label", todo.title + " 삭제");
     del.appendChild(trashIcon());
 
-    li.append(check, main, del);
+    // 한 줄짜리 요약 부분
+    const row = makeEl("div", "todo-row");
+    row.append(check, main, del);
+    li.appendChild(row);
+
+    // 세부 항목이 있으면 하나씩 체크할 수 있게 아래에 펼쳐준다
+    const subItems = Array.isArray(todo.items) ? todo.items : [];
+    if (subItems.length > 0) {
+      li.classList.add("todo--has-items");
+      const ul = makeEl("ul", "subitems");
+      subItems.forEach((item, index) => {
+        const sub = makeEl("li", "subitem" + (item.done ? " is-done" : ""));
+
+        const label = makeEl("label", "check check--sub");
+        const box = document.createElement("input");
+        box.type = "checkbox";
+        box.checked = item.done === true;
+        box.dataset.action = "toggle-item";
+        box.dataset.id = todo.id;
+        box.dataset.index = String(index);
+        box.setAttribute("aria-label", item.text);
+        label.append(box, makeEl("span", "check-box"));
+
+        sub.append(label, makeEl("span", "subitem-text", item.text));
+        ul.appendChild(sub);
+      });
+      li.appendChild(ul);
+    }
+
     return li;
   }
 
@@ -334,11 +387,33 @@ export function initApp(studentId) {
   // --- 동작 ---------------------------------------------------------------
 
   async function handleToggle(id, completed) {
+    const todo = state.todos.find((t) => t.id === id);
+    const changes = { completed };
+    // 세부 항목이 있는 숙제는 위쪽 체크박스로 한꺼번에 처리한다
+    if (todo && Array.isArray(todo.items) && todo.items.length > 0) {
+      changes.items = todo.items.map((it) => ({ ...it, done: completed }));
+    }
     try {
-      await updateTodo(studentId, id, { completed });
+      await updateTodo(studentId, id, changes);
       setStatus(completed ? "잘했어요!" : "다시 할 일로 되돌렸어요.");
     } catch (err) {
       reportError("완료 표시", err);
+    }
+  }
+
+  /** 숙제 안의 세부 항목 하나를 체크/해제한다. */
+  async function handleToggleItem(id, index, done) {
+    const todo = state.todos.find((t) => t.id === id);
+    if (!todo || !Array.isArray(todo.items)) return;
+
+    const items = todo.items.map((it, i) => (i === index ? { ...it, done } : it));
+    // 세부 항목이 전부 끝나면 숙제 자체도 완료로, 하나라도 남으면 다시 미완료로.
+    const completed = items.every((it) => it.done);
+    try {
+      await updateTodo(studentId, id, { items, completed });
+      setStatus(completed ? "숙제 하나를 다 끝냈어요!" : "");
+    } catch (err) {
+      reportError("항목 체크", err);
     }
   }
 
@@ -441,6 +516,9 @@ export function initApp(studentId) {
     switch (action) {
       case "toggle":
         handleToggle(id, trigger.checked);
+        break;
+      case "toggle-item":
+        handleToggleItem(id, Number(trigger.dataset.index), trigger.checked);
         break;
       case "edit":
         state.editingId = id;

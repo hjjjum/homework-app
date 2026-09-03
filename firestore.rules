@@ -28,10 +28,12 @@ service cloud.firestore {
         function isValidTodo(d) {
           return d.keys().hasOnly(
                    ['title', 'category', 'completed', 'date',
-                    'memo', 'addedBy', 'source', 'createdAt'])
+                    'memo', 'addedBy', 'source', 'subject', 'items',
+                    'createdAt'])
               && d.keys().hasAll(['title', 'category', 'completed'])
               && d.title is string
-              && d.title.size() > 0 && d.title.size() <= 200
+              // 학원 알림장을 통째로 담는 경우가 있어 넉넉히 둔다
+              && d.title.size() > 0 && d.title.size() <= 2000
               && d.category in ['숙제', '개인스케줄', '공부']
               && d.completed is bool
               && (!('date' in d) || (d.date is string && d.date.size() <= 30))
@@ -40,6 +42,10 @@ service cloud.firestore {
               // source = 어떤 입력 방식으로 들어왔는지. 새 입력 소스가 추가돼도
               // 규칙을 다시 배포하지 않도록 값 목록 대신 타입/길이만 본다.
               && (!('source' in d) || (d.source is string && d.source.size() <= 40))
+              && (!('subject' in d)
+                  || d.subject in ['수학', '영어', '과학', '국어', '사회', '기타'])
+              // 세부 항목: [{text, done}] 배열. 개수만 제한하고 내부는 앱이 정리한다.
+              && (!('items' in d) || (d.items is list && d.items.size() <= 50))
               && (!('createdAt' in d) || d.createdAt is timestamp);
         }
 

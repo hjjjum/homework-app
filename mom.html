@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>엄마 화면</title>
   <meta name="description" content="엄마 화면" />
-  <meta name="theme-color" content="#2563eb" />
+  <meta name="theme-color" content="#877499" />
   <link rel="manifest" href="manifest-mom.json" />
   <link rel="icon" href="icons/mom-192.png" type="image/png" />
   <link rel="apple-touch-icon" href="icons/mom-180.png" />
@@ -36,12 +36,12 @@
           <span class="field-label" id="source-label">입력 방법</span>
           <!-- 버튼은 mom.js가 js/sources/index.js 목록을 보고 만든다 -->
           <div class="filters" id="source-picker" aria-labelledby="source-label"></div>
-          <p class="hint" id="source-hint">지금은 직접 입력만 쓸 수 있어요.</p>
+          <!-- 선택한 입력 방법에 대한 설명. mom.js가 채운다 -->
+          <p class="hint" id="source-hint"></p>
 
           <label for="raw-input">보낼 내용</label>
           <textarea class="field field--tall" id="raw-input" rows="6"
             placeholder="수학 익힘책 32쪽&#10;영어 단어 20개 외우기&#10;준비물: 물감, 붓"></textarea>
-          <p class="hint">한 줄에 하나씩 적거나, 알림장을 통째로 붙여넣으세요. 빈 줄은 알아서 넘어갑니다.</p>
 
           <button type="button" class="btn btn--primary btn--block" id="split-btn">항목 나누기</button>
         </div>

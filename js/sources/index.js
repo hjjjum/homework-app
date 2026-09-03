@@ -8,9 +8,12 @@
 //   2. 아래에 import 한 줄, INPUT_SOURCES 배열에 한 항목을 추가한다.
 // 그러면 mom.html의 "입력 방법" 토글에 자동으로 나타난다. 다른 코드는 손댈 필요 없다.
 // ---------------------------------------------------------------------------
+import academy from "./academy-message.js";
 import manual from "./manual-input.js";
+import whole from "./whole-message.js";
 
-export const INPUT_SOURCES = [manual];
+// 순서가 화면의 "입력 방법" 버튼 순서다. 학원 메시지가 가장 자주 쓰이므로 맨 앞.
+export const INPUT_SOURCES = [academy, manual, whole];
 
 /** id로 입력 소스를 찾는다. 없으면 첫 번째(직접 입력)로 되돌린다. */
 export function getSource(id) {

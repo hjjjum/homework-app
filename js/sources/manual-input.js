@@ -10,7 +10,9 @@
 // ---------------------------------------------------------------------------
 
 export const id = "manual";
-export const label = "직접 입력";
+export const label = "줄마다 나누기";
+export const actionLabel = "항목 나누기";
+export const hint = "한 줄에 하나씩 적거나 붙여넣으세요. 줄마다 하나의 할 일이 됩니다. 빈 줄은 넘어갑니다.";
 
 /**
  * 여러 줄 텍스트를 할일 제목 배열로 나눈다.
@@ -27,5 +29,5 @@ export function parseManualInput(text) {
 }
 
 /** 입력 소스 공통 인터페이스: { id, label, parse } */
-const source = { id, label, parse: parseManualInput };
+const source = { id, label, actionLabel, hint, parse: parseManualInput };
 export default source;

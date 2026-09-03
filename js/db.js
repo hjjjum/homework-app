@@ -25,6 +25,11 @@ export const CATEGORIES = ["숙제", "개인스케줄", "공부"];
 export const ADDED_BY = ["mom", "self"];
 /** 할일이 어떤 입력 방식으로 들어왔는지. 새 입력 소스는 js/sources/ 에 추가된다. */
 export const DEFAULT_SOURCE = "manual";
+/** 과목. 학원 메시지에서 자동으로 골라지고, 엄마 화면에서 고칠 수 있다. */
+export const SUBJECTS = ["수학", "영어", "과학", "국어", "사회", "기타"];
+export const DEFAULT_SUBJECT = "기타";
+/** 한 숙제 안의 세부 항목 최대 개수 (보안 규칙과 맞춰둘 것) */
+export const MAX_ITEMS = 50;
 
 // --- 내부 헬퍼 --------------------------------------------------------------
 
@@ -43,12 +48,31 @@ function assertStudentId(studentId) {
 }
 
 /**
+ * 세부 항목 배열을 [{text, done}] 모양으로 맞춘다.
+ * 문자열 배열로 줘도 되고, 이미 {text, done} 형태여도 된다.
+ */
+export function normalizeItems(items) {
+  if (!Array.isArray(items)) return [];
+  return items
+    .map((item) => {
+      if (typeof item === "string") return { text: item.trim(), done: false };
+      if (item && typeof item.text === "string") {
+        return { text: item.text.trim(), done: item.done === true };
+      }
+      return null;
+    })
+    .filter((item) => item && item.text)
+    .slice(0, MAX_ITEMS);
+}
+
+/**
  * 입력값을 Firestore에 저장할 형태로 정규화한다.
  * - 필수 필드 검증
  * - 선택 필드(date, memo)는 값이 없으면 빈 문자열로 채움
  */
 function normalizeTodo(todoData) {
-  const { title, category, completed, date, memo, addedBy, source } = todoData || {};
+  const { title, category, completed, date, memo, addedBy, source, subject, items } =
+    todoData || {};
 
   if (typeof title !== "string" || title.trim() === "") {
     throw new Error("title은 비어 있지 않은 문자열이어야 합니다.");
@@ -66,8 +90,11 @@ function normalizeTodo(todoData) {
     date: typeof date === "string" ? date : "",
     memo: typeof memo === "string" ? memo : "",
     addedBy: ADDED_BY.includes(addedBy) ? addedBy : "self",
-    // 어떤 입력 방식으로 만들어졌는지. 지금은 항상 "manual".
+    // 어떤 입력 방식으로 만들어졌는지 (manual / whole / academy)
     source: typeof source === "string" && source.trim() ? source.trim() : DEFAULT_SOURCE,
+    subject: SUBJECTS.includes(subject) ? subject : DEFAULT_SUBJECT,
+    // 세부 항목. 학원 숙제처럼 여러 개를 하나씩 체크해야 할 때 쓴다.
+    items: normalizeItems(items),
   };
 }
 
@@ -102,7 +129,10 @@ export async function updateTodo(studentId, todoId, changes) {
   }
 
   // 허용된 필드만 통과시킨다 (createdAt 등은 수정 불가).
-  const allowed = ["title", "category", "completed", "date", "memo", "addedBy", "source"];
+  const allowed = [
+    "title", "category", "completed", "date", "memo",
+    "addedBy", "source", "subject", "items",
+  ];
   const patch = {};
   for (const key of allowed) {
     if (key in changes) patch[key] = changes[key];
@@ -114,6 +144,10 @@ export async function updateTodo(studentId, todoId, changes) {
     throw new Error(`category는 ${CATEGORIES.join(" / ")} 중 하나여야 합니다.`);
   }
   if ("completed" in patch) patch.completed = patch.completed === true;
+  if ("subject" in patch && !SUBJECTS.includes(patch.subject)) {
+    throw new Error("subject는 " + SUBJECTS.join(" / ") + " 중 하나여야 합니다.");
+  }
+  if ("items" in patch) patch.items = normalizeItems(patch.items);
 
   await updateDoc(doc(db, "students", studentId, "todos", todoId), patch);
 }

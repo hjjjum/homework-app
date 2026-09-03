@@ -4,37 +4,46 @@
    설계 규칙 (지키면서 고쳐주세요)
    - 라이트 모드 한 가지만. 섹션마다 배경을 뒤집지 않는다.
    - 모서리 반경은 두 가지뿐: 버튼/탭/칩/뱃지 = 알약(999px), 카드/입력 = 14px.
-   - 카테고리 색은 --cat-* 토큰이 유일한 출처다. 숙제=파랑, 개인스케줄=초록, 공부=보라.
-   - 진행률은 초록, 주요 버튼은 잉크색. 카테고리 색과 겹치지 않게 일부러 분리했다.
+   - 팔레트: heather(보라) / viridian(청록) / sandstone(모래) / candy(분홍) / azur(짙은초록).
+     원색은 :root 맨 위에 모아 두었다. 색을 바꿀 일이 있으면 거기만 고친다.
+   - 카테고리 색은 --cat-* 토큰, 과목 색은 --sub-* 토큰이 유일한 출처다.
+   - 진행률은 viridian, 주요 버튼은 azur. 카테고리/과목 색과 겹치지 않게 분리했다.
    - 누르는 요소는 최소 44px 터치 영역을 갖는다.
    =========================================================================== */
 
 :root {
-  --bg: #f5f7fa;
-  --surface: #ffffff;
-  --ink: #16191f;
-  --ink-soft: #5d6673;
-  --ink-faint: #98a1ae;
-  --line: #e7eaf0;
-  --line-strong: #d5dae3;
+  /* 팔레트 원색 (파리 파스텔) — 다른 색을 쓰려면 여기만 고친다 */
+  --heather: #877499;
+  --viridian: #679f9f;
+  --sandstone: #e6d4bf;
+  --candy: #e18299;
+  --azur: #2d4729;
 
-  --progress: #10b981;
-  --progress-soft: #d6f5e8;
-  --danger: #dc2626;
-  --danger-soft: #fdeaea;
+  --bg: #faf6f0;          /* sandstone을 아주 연하게 */
+  --surface: #fffdfa;
+  --ink: #2d4729;         /* azur — 짙은 초록을 본문색으로 */
+  --ink-soft: #5e7358;
+  --ink-faint: #9ba795;
+  --line: #efe5d8;
+  --line-strong: #dfcdb6;
 
-  --cat-homework: #2563eb;
-  --cat-homework-bg: #e7efff;
-  --cat-schedule: #059669;
-  --cat-schedule-bg: #e0f5ed;
-  --cat-study: #7c3aed;
-  --cat-study-bg: #f0e9ff;
+  --progress: #679f9f;    /* viridian */
+  --progress-soft: #dfedec;
+  --danger: #b04a66;      /* candy를 진하게 */
+  --danger-soft: #fbe7eb;
+
+  --cat-homework: #3a6566;      /* viridian 진하게 */
+  --cat-homework-bg: #dfedec;
+  --cat-schedule: #b04a66;      /* candy 진하게 */
+  --cat-schedule-bg: #fbe4ea;
+  --cat-study: #6f5c82;         /* heather 진하게 */
+  --cat-study-bg: #eee7f3;
 
   --radius: 14px;
   --pill: 999px;
   --tap: 44px;
 
-  --shadow-soft: 0 1px 2px rgb(22 25 31 / 0.04), 0 8px 24px rgb(22 25 31 / 0.05);
+  --shadow-soft: 0 1px 2px rgb(45 71 41 / 0.05), 0 8px 24px rgb(45 71 41 / 0.07);
 }
 
 * {
@@ -131,7 +140,7 @@ h2 {
   height: 100%;
   width: 0%;
   border-radius: var(--pill);
-  background: linear-gradient(90deg, #34d399, var(--progress));
+  background: linear-gradient(90deg, #8fc5c3, var(--progress));
   transition: width 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -270,7 +279,7 @@ h2 {
   padding: 10px 14px;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius);
-  background: #fff;
+  background: var(--surface);
   color: var(--ink);
   font: inherit;
   font-size: 16px; /* 16px 미만이면 iOS가 입력 시 화면을 확대한다 */
@@ -288,7 +297,7 @@ h2 {
 .todo-main:focus-visible,
 .completed-toggle:focus-visible,
 .check input:focus-visible + .check-box {
-  outline: 3px solid rgb(37 99 235 / 0.45);
+  outline: 3px solid rgb(103 159 159 / 0.55);
   outline-offset: 2px;
 }
 
@@ -402,7 +411,7 @@ textarea.field {
   height: 24px;
   border: 2px solid var(--line-strong);
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface);
   transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
@@ -430,8 +439,9 @@ textarea.field {
   display: block;
   font-size: 16px;
   font-weight: 600;
-  line-height: 1.4;
+  line-height: 1.45;
   word-break: break-word;
+  white-space: pre-wrap; /* 알림장처럼 여러 줄인 제목의 줄바꿈을 살린다 */
 }
 
 .todo-meta {
@@ -465,7 +475,7 @@ textarea.field {
 .due {
   padding: 3px 8px;
   border-radius: var(--pill);
-  background: #f0f2f6;
+  background: #f1eae0;
   color: var(--ink-soft);
   font-size: 12px;
   font-weight: 600;
@@ -562,6 +572,7 @@ textarea.field {
   font-size: 15px;
   font-weight: 600;
   word-break: break-word;
+  white-space: pre-wrap;
 }
 
 .confirm-actions {
@@ -616,7 +627,7 @@ textarea.field {
 }
 
 .todo-list.completed .todo {
-  background: #fbfcfd;
+  background: #fbf8f3;
   box-shadow: none;
 }
 
@@ -660,7 +671,7 @@ textarea.field {
 
 .status[data-error="true"] {
   background: var(--danger-soft);
-  border-color: #f5c2c2;
+  border-color: #f2cfd6;
   color: var(--danger);
 }
 
@@ -712,7 +723,7 @@ textarea.field {
   gap: 4px;
   margin-top: 14px;
   padding: 4px;
-  background: #eaedf3;
+  background: #efe6da;
   border-radius: var(--pill);
 }
 
@@ -733,11 +744,11 @@ textarea.field {
 .mom-tab[aria-selected="true"] {
   background: var(--surface);
   color: var(--ink);
-  box-shadow: 0 1px 3px rgb(22 25 31 / 0.12);
+  box-shadow: 0 1px 3px rgb(45 71 41 / 0.14);
 }
 
 .mom-tab:focus-visible {
-  outline: 3px solid rgb(37 99 235 / 0.45);
+  outline: 3px solid rgb(103 159 159 / 0.55);
   outline-offset: 2px;
 }
 
@@ -789,6 +800,14 @@ textarea.field {
   flex: 1;
   min-width: 0;
   font-weight: 600;
+}
+
+/* 여러 줄 제목을 편집할 때 */
+.draft-head textarea.field,
+.edit-form textarea.field {
+  min-height: 0;
+  line-height: 1.5;
+  resize: vertical;
 }
 
 .draft-head .icon-btn {
@@ -866,7 +885,7 @@ textarea.field {
   gap: 8px;
   margin-top: 18px;
   padding: 12px 0;
-  background: linear-gradient(180deg, rgb(245 247 250 / 0), var(--bg) 30%);
+  background: linear-gradient(180deg, rgb(250 246 240 / 0), var(--bg) 30%);
 }
 
 .send-bar .btn--primary {
@@ -899,7 +918,7 @@ textarea.field {
   flex: 1;
   height: 8px;
   border-radius: var(--pill);
-  background: #eef0f4;
+  background: #f1eae0;
   overflow: hidden;
 }
 
@@ -934,9 +953,9 @@ textarea.field {
   margin: 18px 0 12px;
   padding: 12px 14px;
   border-radius: var(--radius);
-  background: #eef3ff;
-  border: 1px solid #d5e2fb;
-  color: #24457f;
+  background: #f2edf7;
+  border: 1px solid #e3d8ec;
+  color: #5b4a70;
   font-size: 14px;
 }
 
@@ -988,12 +1007,13 @@ textarea.field {
   display: block;
   font-size: 16px;
   font-weight: 600;
-  line-height: 1.4;
+  line-height: 1.45;
   word-break: break-word;
+  white-space: pre-wrap;
 }
 
 .watch-item.is-done {
-  background: #fbfcfd;
+  background: #fbf8f3;
 }
 
 .watch-item.is-done .watch-title {
@@ -1044,4 +1064,174 @@ textarea.field {
 
 .home-link:active {
   transform: scale(0.99);
+}
+
+/* ===========================================================================
+   과목 + 세부 항목 (학원 숙제)
+   =========================================================================== */
+:root {
+  --sub-math: #2d4729;          /* azur */
+  --sub-math-bg: #e3ebdf;
+  --sub-english: #8f5f2c;       /* sandstone 진하게 */
+  --sub-english-bg: #f5ebdc;
+  --sub-science: #3a6566;       /* viridian */
+  --sub-science-bg: #dfedec;
+  --sub-korean: #b04a66;        /* candy */
+  --sub-korean-bg: #fbe4ea;
+  --sub-social: #6f5c82;        /* heather */
+  --sub-social-bg: #eee7f3;
+  --sub-etc: #6e7a6c;
+  --sub-etc-bg: #ecede9;
+}
+
+/* 과목 뱃지 — 카테고리 뱃지와 구분되도록 테두리를 준다 */
+.badge--subject {
+  border: 1px solid currentColor;
+}
+
+.subject--math    { background: var(--sub-math-bg);    color: var(--sub-math); }
+.subject--english { background: var(--sub-english-bg); color: var(--sub-english); }
+.subject--science { background: var(--sub-science-bg); color: var(--sub-science); }
+.subject--korean  { background: var(--sub-korean-bg);  color: var(--sub-korean); }
+.subject--social  { background: var(--sub-social-bg);  color: var(--sub-social); }
+.subject--etc     { background: var(--sub-etc-bg);     color: var(--sub-etc); }
+
+/* 숙제 카드: 요약 줄 + 세부 항목 목록 */
+.todo {
+  display: block;
+}
+
+.todo-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.item-count {
+  padding: 2px 8px;
+  border-radius: var(--pill);
+  background: #f1eae0;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.subitems {
+  list-style: none;
+  margin: 0;
+  padding: 2px 14px 12px 44px; /* 왼쪽은 위 체크박스와 줄 맞춤 */
+  display: grid;
+  gap: 2px;
+  border-top: 1px solid var(--line);
+  margin-top: 2px;
+  padding-top: 8px;
+}
+
+.subitem {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.check--sub {
+  width: 34px;
+  min-height: 34px;
+  padding-top: 4px;
+  margin-left: -6px;
+}
+
+.check--sub .check-box {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  background-size: 13px 13px;
+}
+
+.subitem-text {
+  flex: 1;
+  padding: 7px 0;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--ink-soft);
+  word-break: break-word;
+}
+
+.subitem.is-done .subitem-text {
+  color: var(--ink-faint);
+  text-decoration: line-through;
+}
+
+/* --- 엄마 화면: 과목 선택 + 세부 항목 편집 -------------------------------- */
+
+.subject-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.subject-chip {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--pill);
+  background: var(--surface);
+  color: var(--ink-faint);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.subject-chip[aria-pressed="true"] {
+  border-color: currentColor;
+}
+
+.subject-chip.subject--math[aria-pressed="true"]    { background: var(--sub-math-bg);    color: var(--sub-math); }
+.subject-chip.subject--english[aria-pressed="true"] { background: var(--sub-english-bg); color: var(--sub-english); }
+.subject-chip.subject--science[aria-pressed="true"] { background: var(--sub-science-bg); color: var(--sub-science); }
+.subject-chip.subject--korean[aria-pressed="true"]  { background: var(--sub-korean-bg);  color: var(--sub-korean); }
+.subject-chip.subject--social[aria-pressed="true"]  { background: var(--sub-social-bg);  color: var(--sub-social); }
+.subject-chip.subject--etc[aria-pressed="true"]     { background: var(--sub-etc-bg);     color: var(--sub-etc); }
+
+.draft-items-label {
+  margin: 4px 0 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.draft-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.draft-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.draft-item .field {
+  flex: 1;
+  min-width: 0;
+  min-height: 40px;
+  padding: 6px 12px;
+  font-size: 15px;
+}
+
+.draft-memo {
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-faint);
+}
+
+/* 하단에 붙어 있는 보내기 바에 마지막 카드가 가리지 않도록 여백을 둔다 */
+#panel-input {
+  padding-bottom: 84px;
 }

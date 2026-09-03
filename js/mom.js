@@ -7,13 +7,15 @@
 // "현황 보기"는 의도적으로 읽기 전용이다. 체크/수정/삭제는 각자 딸 화면에서만
 // 할 수 있게 두어, 엄마가 대신 체크해 버리는 상황을 막는다.
 // ---------------------------------------------------------------------------
-import { addTodo, listenTodos, CATEGORIES, STUDENT_IDS } from "./db.js";
+import { addTodo, listenTodos, CATEGORIES, STUDENT_IDS, SUBJECTS } from "./db.js";
 import {
   ALL,
   CATEGORY_KEY,
+  SUBJECT_KEY,
   calcProgress,
   splitByCompleted,
   formatDue,
+  countTodo,
 } from "./todo-logic.js";
 import { INPUT_SOURCES, getSource } from "./sources/index.js";
 
@@ -120,16 +122,30 @@ export function initMom() {
       btn.setAttribute("aria-pressed", String(state.sourceId === source.id));
       els.sourcePicker.appendChild(btn);
     }
+    const current = getSource(state.sourceId);
     if (els.sourceHint) {
-      els.sourceHint.hidden = INPUT_SOURCES.length > 1;
+      els.sourceHint.textContent = current.hint || "";
+      els.sourceHint.hidden = !current.hint;
+    }
+    if (els.splitBtn) {
+      els.splitBtn.textContent = current.actionLabel || "항목 만들기";
     }
   }
 
-  function makeDraft(title) {
+  /**
+   * 파서가 준 결과로 카드 하나를 만든다.
+   * 입력 소스에 따라 문자열(제목만) 또는 객체({title, subject, items, memo})가 온다.
+   */
+  function makeDraft(parsed) {
+    const data = typeof parsed === "string" ? { title: parsed } : parsed || {};
     return {
       key: "d" + state.nextKey++,
-      title,
+      title: data.title || "",
       category: CATEGORIES[0], // 기본값 "숙제"
+      subject: SUBJECTS.includes(data.subject) ? data.subject : "기타",
+      subjectConfident: data.subjectConfident !== false,
+      items: Array.isArray(data.items) ? data.items.slice() : [],
+      memo: data.memo || "",
       date: "",
       // 기본값은 둘 다. 한 명만 보낼 때 한 번만 눌러 끄면 된다.
       recipients: { daughter1: true, daughter2: true },
@@ -142,14 +158,25 @@ export function initMom() {
     const titles = source.parse(els.rawInput ? els.rawInput.value : "");
 
     if (titles.length === 0) {
-      setInputStatus("나눌 내용이 없습니다. 할 일을 한 줄에 하나씩 적어주세요.", true);
+      setInputStatus("보낼 내용이 비어 있습니다.", true);
       if (els.rawInput) els.rawInput.focus();
       return;
     }
 
-    for (const title of titles) state.drafts.push(makeDraft(title));
+    for (const parsed of titles) {
+      const draft = makeDraft(parsed);
+      // 학원 메시지 첫 줄이 바로 숙제라서 제목이 비는 경우가 있다
+      if (!draft.title) {
+        draft.title = (draft.subject !== "기타" ? draft.subject + " " : "") + "숙제";
+      }
+      state.drafts.push(draft);
+    }
     if (els.rawInput) els.rawInput.value = "";
-    setInputStatus(titles.length + "개 항목으로 나눴습니다. 확인 후 보내주세요.");
+    setInputStatus(
+      titles.length === 1
+        ? "항목 1개를 담았습니다. 받는 사람을 확인하고 보내주세요."
+        : titles.length + "개 항목으로 나눴습니다. 확인 후 보내주세요."
+    );
     renderDrafts();
   }
 
@@ -175,8 +202,15 @@ export function initMom() {
     card.dataset.key = draft.key;
 
     const head = makeEl("div", "draft-head");
-    const title = document.createElement("input");
-    title.type = "text";
+    // 여러 줄짜리 제목을 <input>에 넣으면 브라우저가 줄바꿈을 지워버린다.
+    // 그래서 줄바꿈이 있으면 textarea로 편집한다.
+    const multiline = draft.title.includes("\n");
+    const title = document.createElement(multiline ? "textarea" : "input");
+    if (multiline) {
+      title.rows = Math.min(draft.title.split("\n").length + 1, 10);
+    } else {
+      title.type = "text";
+    }
     title.className = "field";
     title.value = draft.title;
     title.dataset.action = "title";
@@ -203,6 +237,20 @@ export function initMom() {
       chips.appendChild(chip);
     }
 
+    // 과목 선택 (학원 메시지에서 자동으로 골라진 값이 미리 선택돼 있다)
+    const subjectRow = makeEl("div", "subject-row");
+    subjectRow.setAttribute("role", "group");
+    subjectRow.setAttribute("aria-label", "과목");
+    for (const sub of SUBJECTS) {
+      const btn = makeEl("button", "subject-chip subject--" + SUBJECT_KEY[sub], sub);
+      btn.type = "button";
+      btn.dataset.action = "subject";
+      btn.dataset.key = draft.key;
+      btn.dataset.value = sub;
+      btn.setAttribute("aria-pressed", String(draft.subject === sub));
+      subjectRow.appendChild(btn);
+    }
+
     const bottom = makeEl("div", "draft-bottom");
     const date = document.createElement("input");
     date.type = "date";
@@ -213,7 +261,40 @@ export function initMom() {
     date.setAttribute("aria-label", "마감일 (선택)");
     bottom.append(renderRecipientToggles(draft), date);
 
-    card.append(head, chips, bottom);
+    card.append(head, chips, subjectRow, bottom);
+
+    // 세부 항목 — 딸 화면에서 하나씩 체크하게 될 목록. 여기서 지우거나 고칠 수 있다.
+    if (draft.items.length > 0) {
+      const label = makeEl("p", "draft-items-label", "세부 항목 " + draft.items.length + "개");
+      const ul = makeEl("ul", "draft-items");
+      draft.items.forEach((text, index) => {
+        const li = makeEl("li", "draft-item");
+        const input = document.createElement("input");
+        input.type = "text";
+        input.className = "field";
+        input.value = text;
+        input.dataset.action = "item-text";
+        input.dataset.key = draft.key;
+        input.dataset.index = String(index);
+        input.setAttribute("aria-label", "세부 항목 " + (index + 1));
+
+        const del = makeEl("button", "icon-btn", "✕");
+        del.type = "button";
+        del.dataset.action = "item-remove";
+        del.dataset.key = draft.key;
+        del.dataset.index = String(index);
+        del.setAttribute("aria-label", text + " 빼기");
+
+        li.append(input, del);
+        ul.appendChild(li);
+      });
+      card.append(label, ul);
+    }
+
+    if (draft.memo) {
+      card.appendChild(makeEl("p", "draft-memo", "참고: " + draft.memo.split("\n").join(" ")));
+    }
+
     return card;
   }
 
@@ -271,6 +352,18 @@ export function initMom() {
         renderDrafts();
         break;
       }
+      case "subject":
+        draft.subject = target.dataset.value;
+        draft.subjectConfident = true;
+        renderDrafts();
+        break;
+      case "item-text":
+        draft.items[Number(target.dataset.index)] = target.value;
+        break;
+      case "item-remove":
+        draft.items.splice(Number(target.dataset.index), 1);
+        renderDrafts();
+        break;
       case "remove":
         state.drafts = state.drafts.filter((d) => d.key !== draft.key);
         setInputStatus("항목 하나를 뺐습니다.");
@@ -282,7 +375,11 @@ export function initMom() {
   async function handleSend() {
     if (state.sending) return;
 
-    const items = state.drafts.map((d) => ({ ...d, title: d.title.trim() }));
+    const items = state.drafts.map((d) => ({
+      ...d,
+      title: d.title.trim(),
+      items: d.items.map((t) => String(t).trim()).filter(Boolean),
+    }));
 
     if (items.some((d) => !d.title)) {
       setInputStatus("제목이 빈 항목이 있습니다. 채우거나 빼주세요.", true);
@@ -304,6 +401,9 @@ export function initMom() {
           await addTodo(studentId, {
             title: draft.title,
             category: draft.category,
+            subject: draft.subject,
+            items: draft.items,
+            memo: draft.memo,
             date: draft.date,
             completed: false,
             addedBy: "mom",

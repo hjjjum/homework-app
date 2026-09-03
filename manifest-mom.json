@@ -6,8 +6,8 @@
   "start_url": "./mom.html",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#f5f7fa",
-  "theme_color": "#2563eb",
+  "background_color": "#faf6f0",
+  "theme_color": "#877499",
   "icons": [
     { "src": "./icons/mom-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
     { "src": "./icons/mom-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
