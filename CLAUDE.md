@@ -71,10 +71,20 @@ mom.html        →  js/mom.js  ┤→  js/db.js  →  js/firebase-config.js  �
   `calcProgress` / `formatDue`)와 `CATEGORY_KEY`. DOM·Firestore에 의존하지 않으므로 Node에서
   그대로 테스트할 수 있다. 진행률이나 정렬 규칙을 바꿀 일이 있으면 여기 한 곳만 고치면 두 화면에
   같이 반영된다. app.js가 하위 호환을 위해 이것들을 다시 export 한다.
-- **js/sources/** — "할일 제목을 어디서 얻어오는가"를 담당하는 모듈들. 각 파일은
-  `{ id, label, parse }`를 default export 하고, `sources/index.js`의 `INPUT_SOURCES`에 등록된다.
-  mom.html의 "입력 방법" 토글은 이 목록을 그대로 그리므로, 자동 입력 방식을 추가하려면
-  `sources/auto-xxx.js` 파일 하나와 index.js의 import 한 줄이면 된다. 다른 코드는 손대지 않는다.
+- **js/sources/** — "할일을 어디서 얻어오는가"를 담당하는 모듈들. 각 파일은
+  `{ id, label, actionLabel, hint, parse }`를 default export 하고, `sources/index.js`의
+  `INPUT_SOURCES`에 등록된다. mom.html의 "입력 방법" 토글은 이 목록을 그대로 그리므로,
+  입력 방식을 추가하려면 파일 하나와 index.js의 import 한 줄이면 된다.
+  `parse()`는 문자열 배열을 돌려주거나, `{title, subject, items, memo}` 객체 배열을 돌려줘도 된다
+  (mom.js의 `makeDraft`가 둘 다 받는다).
+  - `academy-message.js` — 학원 카톡 알림장을 읽는다. 기본 입력 방식.
+    머리말 → 과제 시작 표시(`△ 과제`, `#숙제범위`, `과제 안내`, `Homework`) → 번호 항목
+    (`①②` `1️⃣2️⃣` `1.` `1)` `-`, 그리고 `READING`/`NOVEL` 같은 영역 헤더) → 맺음말 구조를 인식하고,
+    내용 속 단어로 과목을 추측한다(`SUBJECT_KEYWORDS`). 번호 없는 줄은 앞 항목의 설명으로 붙인다.
+    실제 학원 7곳 메시지로 검증했다. **새 학원 형태가 안 맞으면 START_MARKERS / ITEM_PATTERNS /
+    SUBJECT_KEYWORDS 에 패턴을 추가하는 것으로 대응한다.**
+  - `manual-input.js` — 줄마다 하나씩 나눈다.
+  - `whole-message.js` — 줄바꿈을 살려 통째로 하나로 담는다.
 - **js/mom.js** — 엄마 화면. 입력 탭(쓰기 전용)과 현황 보기 탭(읽기 전용) 두 개.
   **현황 탭은 의도적으로 읽기 전용이다** — 목록에 button/input을 아예 만들지 않아서 구조적으로
   체크나 수정이 불가능하다. 편의를 위해서라도 여기에 체크박스를 추가하지 말 것.
@@ -89,8 +99,17 @@ mom.html        →  js/mom.js  ┤→  js/db.js  →  js/firebase-config.js  �
   콘솔에서 이 문서가 기울임체로 보이는 건 정상이다.
 - todo 필드: `title`(string), `category`(`"숙제"|"개인스케줄"|"공부"`), `completed`(bool),
   `date`(string, 선택), `memo`(string, 선택), `addedBy`(`"mom"|"self"`),
-  `source`(string, 어떤 입력 방식으로 들어왔는지 — 지금은 항상 `"manual"`),
+  `source`(string, 어떤 입력 방식으로 들어왔는지 — `"academy"|"manual"|"whole"`),
+  `subject`(`"수학"|"영어"|"과학"|"국어"|"사회"|"기타"`),
+  `items`(list of `{text, done}`, 최대 50개 — 학원 숙제의 세부 항목),
   `createdAt`(serverTimestamp)
+
+**카테고리와 과목은 다른 축이다.** 카테고리는 "숙제/개인스케줄/공부"처럼 할 일의 종류이고,
+과목은 "수학/영어..."다. 학원 숙제는 보통 category=숙제 + subject=수학 조합이 된다.
+
+`items`가 있으면 진행률을 **항목 단위**로 센다(`todo-logic.js`의 `countTodo`). 학원 숙제 1건에
+세부 항목이 4개면 4개로 세야 체감과 맞는다. 항목이 전부 done이면 그 숙제의 `completed`도
+자동으로 true가 된다 (app.js의 `handleToggleItem`).
 
 **필드를 추가/변경할 때는 세 곳을 함께 고쳐야 한다.** 하나라도 빠지면 쓰기가 403으로 조용히 실패한다:
 
@@ -100,6 +119,13 @@ mom.html        →  js/mom.js  ┤→  js/db.js  →  js/firebase-config.js  �
 
 `listenTodos`는 `d.data({ serverTimestamps: "estimate" })`로 읽는다. 오프라인에서 방금 추가한 항목의
 `createdAt`이 `null`이 되어 정렬이 깨지는 걸 막기 위한 것이므로 그냥 `d.data()`로 바꾸지 말 것.
+
+## 색 팔레트
+
+`css/style.css` 맨 위 `:root`에 원색 5개(`--heather` `--viridian` `--sandstone` `--candy` `--azur`)를
+모아 두었고, 나머지 토큰은 여기서 파생된다. 색을 바꿀 일이 있으면 원색만 고친다.
+`--cat-*`(카테고리) / `--sub-*`(과목) 토큰이 각 뱃지 색의 유일한 출처다.
+아이콘은 팔레트에 맞춰 생성한 PNG이므로, 색을 바꾸면 `icons/`도 다시 만들어야 한다.
 
 ## PWA / 서비스워커
 
