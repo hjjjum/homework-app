@@ -122,8 +122,20 @@ export async function recognizeImage(source, onProgress) {
   });
 
   try {
-    const { data } = await worker.recognize(canvas);
-    return { text: cleanOcrText(data.text), confidence: data.confidence };
+    const { data } = await worker.recognize(canvas, {}, { text: true, blocks: true });
+
+    // 표(칸이 나뉜 숙제표)면 칸 구조를 되살려 읽는다.
+    // 실패하면 그냥 통째로 읽은 글을 쓴다.
+    let sections = null;
+    try {
+      report("표 구조 살펴보는 중");
+      sections = await reconstructTable(worker, canvas, data, report);
+    } catch (err) {
+      console.warn("[ocr] 표 인식 실패, 일반 방식으로 진행:", err.message);
+    }
+    const text = sections ? sectionsToText(sections) : cleanOcrText(data.text);
+
+    return { text, confidence: data.confidence, sections };
   } finally {
     await worker.terminate();
   }
@@ -172,4 +184,307 @@ export function imageFromPaste(event) {
     }
   }
   return null;
+}
+
+// ===========================================================================
+// 표(엑셀 캡쳐 등) 인식
+//
+// 학원 숙제표는 [세부과목 | 숙제 | 제출날짜] 처럼 칸이 나뉘어 있는데,
+// 이미지를 통째로 읽으면 칸 경계가 사라져서 여러 줄이 뒤엉킨다.
+// 그래서 글자 좌표를 이용해 표를 되살린다:
+//   1. 각 줄의 시작 x좌표를 모아 세로 칸(열)을 찾는다
+//   2. y좌표가 겹치는 글자끼리 묶어 가로 줄(행)을 만든다
+//   3. 첫 열은 Tesseract가 자주 통째로 건너뛰므로, 픽셀을 훑어 글자가 있는
+//      위치만 찾아내 그 부분만 따로 읽는다 (이게 없으면 READING/NOVEL이 통째로 빠진다)
+// ===========================================================================
+
+/** y가 겹치는 글자끼리 한 줄로 묶는다. */
+function groupIntoRows(words) {
+  const sorted = words.slice().sort((a, b) => a.y0 - b.y0 || a.x0 - b.x0);
+  const rows = [];
+  for (const w of sorted) {
+    const mid = (w.y0 + w.y1) / 2;
+    const row = rows.find((r) => mid >= r.y0 - 4 && mid <= r.y1 + 4);
+    if (row) {
+      row.words.push(w);
+      row.y0 = Math.min(row.y0, w.y0);
+      row.y1 = Math.max(row.y1, w.y1);
+    } else {
+      rows.push({ y0: w.y0, y1: w.y1, words: [w] });
+    }
+  }
+  for (const r of rows) r.words.sort((a, b) => a.x0 - b.x0);
+  rows.sort((a, b) => a.y0 - b.y0);
+  return rows;
+}
+
+/**
+ * 줄의 시작 위치를 모아 열의 왼쪽 경계를 찾는다.
+ * 표의 칸은 왼쪽 정렬이라 시작 x가 몇 군데로 뭉친다.
+ */
+function detectColumns(rows, pageWidth) {
+  const starts = rows.map((r) => r.words[0].x0).sort((a, b) => a - b);
+  const cols = [];
+  for (const x of starts) {
+    if (!cols.length || x - cols[cols.length - 1] > pageWidth * 0.08) cols.push(x);
+  }
+  // 오른쪽 끝에 따로 떨어진 칸(제출 날짜 등)도 열로 잡는다.
+  // 그 칸에서 "가장 왼쪽" 글자가 칸의 시작이다 (가장 오른쪽을 쓰면 날짜가 본문에 섞인다).
+  const rightWords = rows
+    .flatMap((r) => r.words)
+    .filter((w) => w.x0 > pageWidth * 0.8);
+  if (rightWords.length) {
+    const rightStart = Math.min(...rightWords.map((w) => w.x0));
+    if (rightStart - cols[cols.length - 1] > pageWidth * 0.08) cols.push(rightStart);
+  }
+  return cols;
+}
+
+/** 글자들을 이어 붙인다. 사이가 좁으면 붙이고(한글 음절), 벌어지면 띄운다. */
+function joinWords(words, lineHeight) {
+  let out = "";
+  for (let i = 0; i < words.length; i++) {
+    if (i > 0 && words[i].x0 - words[i - 1].x1 > lineHeight * 0.25) out += " ";
+    out += words[i].t;
+  }
+  return out.trim();
+}
+
+/**
+ * 첫 열에서 글자가 있는 세로 구간을 픽셀로 찾는다.
+ * Tesseract가 표의 고립된 칸(READING, NOVEL 같은 것)을 자주 통째로 빠뜨리기 때문에,
+ * 위치만 찾아 두었다가 그 부분만 잘라서 다시 읽는다.
+ */
+function findInkBands(canvas, x0, x1) {
+  const w = Math.max(1, x1 - x0);
+  const h = canvas.height;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  const px = ctx.getImageData(x0, 0, w, h).data;
+
+  const bands = [];
+  let start = -1;
+  for (let y = 0; y < h; y++) {
+    let dark = 0;
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      const gray = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+      if (gray < 140) dark++;
+    }
+    // 세로 테두리선은 어느 줄에서나 몇 픽셀씩 어둡게 잡히므로 문턱을 올린다.
+    // (이게 낮으면 표 전체가 한 덩어리로 잡혀 칸 이름을 못 찾는다)
+    // 가로 테두리선은 거의 전체가 어두우므로 위쪽 한계로 걸러낸다.
+    const isText = dark > Math.max(4, w * 0.03) && dark < w * 0.8;
+    if (isText) {
+      if (start === -1) start = y;
+    } else if (start !== -1) {
+      if (y - start > h * 0.008) bands.push([start, y - 1]);
+      start = -1;
+    }
+  }
+  if (start !== -1) bands.push([start, h - 1]);
+  return bands;
+}
+
+/**
+ * 표의 가로 구분선(행을 나누는 줄) 위치를 찾는다.
+ * 가로로 길게 이어진 어두운 픽셀 줄이 곧 칸의 경계다.
+ * 라벨이 칸 가운데에 있어서 라벨 위치만으로는 경계를 알 수 없기 때문에 필요하다.
+ */
+function findHorizontalRules(canvas) {
+  const w = canvas.width;
+  const h = canvas.height;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  const px = ctx.getImageData(0, 0, w, h).data;
+
+  const rules = [];
+  let run = -1;
+  for (let y = 0; y < h; y++) {
+    let dark = 0;
+    for (let x = 0; x < w; x += 2) {
+      const i = (y * w + x) * 4;
+      const gray = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+      if (gray < 140) dark++;
+    }
+    const isRule = dark > (w / 2) * 0.6;
+    if (isRule) {
+      if (run === -1) run = y;
+    } else if (run !== -1) {
+      rules.push(Math.round((run + y - 1) / 2));
+      run = -1;
+    }
+  }
+  if (run !== -1) rules.push(Math.round((run + h - 1) / 2));
+  return rules;
+}
+
+/** 날짜처럼 보이는 짧은 글자인지 (9/8, 9월 8일) */
+function looksLikeDate(text) {
+  return /\d{1,2}\s*[/월.]\s*\d{1,2}/.test(text);
+}
+
+/**
+ * 표를 되살려 사람이 읽을 수 있는 글로 바꾼다.
+ * @returns {string|null} 표가 아니면 null
+ */
+export async function reconstructTable(worker, canvas, data, onProgress) {
+  const words = (data.words || [])
+    .filter((w) => w.text && w.text.trim())
+    .map((w) => ({
+      x0: w.bbox.x0, x1: w.bbox.x1, y0: w.bbox.y0, y1: w.bbox.y1,
+      t: w.text.trim(),
+    }));
+  if (words.length < 10) return null;
+
+  const rows = groupIntoRows(words);
+  const pageWidth = Math.max(...words.map((w) => w.x1));
+  const cols = detectColumns(rows, pageWidth);
+
+  // 열이 하나뿐이면 표가 아니다 (그냥 카톡 캡쳐 등)
+  if (cols.length < 2 || rows.length < 4) return null;
+
+  const columnOf = (w) => {
+    let idx = 0;
+    for (let i = 0; i < cols.length; i++) if (w.x0 >= cols[i] - 20) idx = i;
+    return idx;
+  };
+
+  // 첫 열의 라벨은 따로 읽는다 (통째로 읽으면 자주 빠진다)
+  const labelRight = cols.length > 1 ? cols[1] - 10 : 0;
+  const bands = findInkBands(canvas, Math.max(0, cols[0] - 20), labelRight);
+  const labels = [];
+  await worker.setParameters({ tessedit_pageseg_mode: "7" });
+  for (let i = 0; i < bands.length && i < 12; i++) {
+    if (onProgress) onProgress("칸 이름 읽는 중", Math.round(((i + 1) / bands.length) * 100));
+    const [y0, y1] = bands[i];
+    const pad = Math.round((y1 - y0) * 0.5) + 6;
+    const crop = document.createElement("canvas");
+    const cw = labelRight - Math.max(0, cols[0] - 20);
+    const ch = Math.min(canvas.height, y1 + pad) - Math.max(0, y0 - pad);
+    if (cw < 10 || ch < 10) continue;
+    crop.width = cw * 2;
+    crop.height = ch * 2;
+    const cctx = crop.getContext("2d");
+    cctx.imageSmoothingQuality = "high";
+    cctx.drawImage(
+      canvas, Math.max(0, cols[0] - 20), Math.max(0, y0 - pad), cw, ch,
+      0, 0, crop.width, crop.height
+    );
+    const r = await worker.recognize(crop);
+    // 표의 세로 테두리가 "ㅣ" "|" 같은 글자로 딸려 들어온다. 앞뒤에서 걷어낸다.
+    const cleaned = (r.data.text || "")
+      .replace(/[~_]+/g, " ")
+      .replace(/^[\s|ㅣlI]+/, "")
+      .replace(/[\s|ㅣ]+$/, "")
+      .trim();
+    labels.push({ y0, y1, text: cleaned });
+  }
+  await worker.setParameters({ tessedit_pageseg_mode: "3" });
+
+  // 각 행을 열별로 나눈다.
+  // 글자를 하나씩 이어 붙이면 한글이 "채 점 하기"처럼 벌어지므로,
+  // 한 열 안에만 있는 줄은 Tesseract가 준 원문 줄을 그대로 쓴다.
+  const laid = rows.map((row) => {
+    const height = row.y1 - row.y0;
+    const cells = cols.map(() => []);
+    for (const w of row.words) cells[columnOf(w)].push(w);
+
+    const used = cells.filter((c) => c.length).length;
+    const rowMid = (row.y0 + row.y1) / 2;
+    const bodyLeft = cols[1] - 20;
+    const bodyRight = cols.length > 2 ? cols[cols.length - 1] + 20 : Infinity;
+    // 같은 높이에 있고, 본문 칸 안에만 들어있는 줄이어야 한다.
+    // (조건이 느슨하면 엉뚱한 줄을 가져와 같은 내용이 두 번 나온다)
+    const line = (data.lines || []).find(
+      (l) =>
+        Math.abs((l.bbox.y0 + l.bbox.y1) / 2 - rowMid) < height * 0.5 &&
+        l.bbox.x0 >= bodyLeft &&
+        l.bbox.x1 <= bodyRight
+    );
+    const bodyWords = cells[1] || [];
+    const body = (
+      used === 1 && bodyWords.length && line && line.text
+        ? line.text.trim()
+        : joinWords(bodyWords, height)
+    ).replace(/^[|ㅣ]\s*/, "");
+
+    return {
+      y0: row.y0,
+      mid: (row.y0 + row.y1) / 2,
+      body,
+      date: cols.length > 2 ? joinWords(cells[cols.length - 1] || [], height) : "",
+    };
+  });
+
+  // 표의 가로 구분선으로 구역을 나눈다.
+  // 라벨은 칸 한가운데 있어서 라벨 위치만으로 나누면 위아래가 섞인다.
+  const rules = findHorizontalRules(canvas);
+  const bounds = [0, ...rules, canvas.height];
+  const sections = [];
+  for (let i = 0; i < bounds.length - 1; i++) {
+    if (bounds[i + 1] - bounds[i] < 20) continue; // 너무 얇은 구역은 선 자체
+    sections.push({ top: bounds[i], bottom: bounds[i + 1], name: "", lines: [], date: "" });
+  }
+  if (sections.length < 2) return null;
+
+  const findSection = (y) =>
+    sections.find((s) => y >= s.top && y < s.bottom) || null;
+
+  // 칸 이름을 제 구역에 넣는다
+  for (const label of labels) {
+    if (!label.text) continue;
+    const s = findSection((label.y0 + label.y1) / 2);
+    if (s && !s.name) s.name = label.text;
+  }
+
+  for (const row of laid) {
+    const s = findSection(row.mid);
+    if (!s) continue;
+    if (row.body) s.lines.push(row.body);
+    if (row.date && looksLikeDate(row.date) && !s.date) s.date = row.date;
+  }
+
+  // 첫 구역은 표의 머리글(구분/제출 날짜 등)이라 버린다
+  const useful = sections.filter((s) => s.lines.length > 0);
+  if (useful.length === 0) return null;
+  const body = useful.length > 1 ? useful.slice(1) : useful;
+
+  return body.map((s) => ({
+    name: s.name || "",
+    date: s.date || "",
+    lines: s.lines.filter(Boolean),
+  }));
+}
+
+/** 표에서 뽑은 구역들을 사람이 읽을 글로 (입력창에 보여줄 용도) */
+export function sectionsToText(sections) {
+  const out = [];
+  for (const s of sections) {
+    const head = [s.name, s.date ? "(제출 " + s.date + ")" : ""].filter(Boolean).join(" ");
+    if (head) out.push(head);
+    for (const line of s.lines) out.push(line);
+    out.push("");
+  }
+  return out.join("\n").trim();
+}
+
+/**
+ * "9/8", "9월 8일" 같은 제출일을 마감일(YYYY-MM-DD)로 바꾼다.
+ * 올해 기준으로 보되, 이미 한참 지난 날짜면 내년 것으로 본다.
+ * @returns {string} 못 알아보면 빈 문자열
+ */
+export function parseDueDate(text, today = new Date()) {
+  if (typeof text !== "string") return "";
+  const m = text.match(/(\d{1,2})\s*[/월.\-]\s*(\d{1,2})/);
+  if (!m) return "";
+  const month = Number(m[1]);
+  const day = Number(m[2]);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return "";
+
+  let year = today.getFullYear();
+  const candidate = new Date(year, month - 1, day);
+  const base = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  if ((base - candidate) / 86400000 > 180) year += 1;
+
+  const pad = (n) => String(n).padStart(2, "0");
+  return year + "-" + pad(month) + "-" + pad(day);
 }

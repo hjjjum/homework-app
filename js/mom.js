@@ -18,7 +18,7 @@ import {
   countTodo,
 } from "./todo-logic.js";
 import { INPUT_SOURCES, getSource } from "./sources/index.js";
-import { recognizeImage, imageFromPaste } from "./ocr.js";
+import { recognizeImage, imageFromPaste, parseDueDate } from "./ocr.js";
 
 /** 화면에 보여줄 딸 이름. db의 studentId와 짝을 이룬다. */
 export const STUDENT_LABEL = {
@@ -598,18 +598,49 @@ export function initMom() {
     els.ocrStatus.dataset.error = isError ? "true" : "false";
   }
 
+  /** 표 한 칸의 내용으로 과목을 추측한다 (학원 메시지 파서의 판단을 그대로 쓴다) */
+  function detectSubjectOf(section) {
+    const text = [section.name, ...section.lines].join(" ");
+    const guessed = getSource("academy").parse(text);
+    return guessed.length ? guessed[0].subject : "기타";
+  }
+
   async function readImage(file) {
     if (!file) return;
     if (els.ocrBtn) els.ocrBtn.disabled = true;
     try {
-      const { text, confidence } = await recognizeImage(file, (step, percent) => {
+      const { text, confidence, sections } = await recognizeImage(file, (step, percent) => {
         setOcrStatus(percent === null ? step + "..." : step + "... " + percent + "%");
       });
       if (!text) {
         setOcrStatus("글자를 찾지 못했습니다. 더 크게 찍은 캡쳐로 해보세요.", true);
         return;
       }
-      // 기존 내용이 있으면 아래에 이어 붙인다
+
+      // 칸이 나뉜 숙제표면 칸 구조를 그대로 살려 카드를 만든다.
+      // (글로 바꿨다가 다시 나누면 칸 경계가 또 뭉개진다)
+      if (sections && sections.length >= 2) {
+        for (const section of sections) {
+          const draft = makeDraft({
+            title: section.name || "",
+            items: section.lines,
+            subject: detectSubjectOf(section),
+          });
+          draft.date = parseDueDate(section.date);
+          if (!draft.title) {
+            draft.title = (draft.subject !== "기타" ? draft.subject + " " : "") + "숙제";
+          }
+          state.drafts.push(draft);
+        }
+        setOcrStatus(
+          "표에서 숙제 " + sections.length + "개를 만들었습니다 (정확도 " +
+            Math.round(confidence) + "%). 내용을 확인해 주세요."
+        );
+        renderDrafts();
+        return;
+      }
+
+      // 표가 아니면 읽은 글을 입력창에 넣고, 평소처럼 나누게 한다
       const box = els.rawInput;
       box.value = box.value.trim() ? box.value.trim() + "\n" + text : text;
       setOcrStatus(

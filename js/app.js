@@ -26,7 +26,7 @@ import {
 } from "./todo-logic.js";
 import { parseManualInput } from "./sources/manual-input.js";
 import { INPUT_SOURCES, getSource } from "./sources/index.js";
-import { recognizeImage, imageFromPaste } from "./ocr.js";
+import { recognizeImage, imageFromPaste, parseDueDate } from "./ocr.js";
 
 // 순수 로직은 todo-logic.js, 입력 파싱은 sources/ 아래로 분리되어 있다.
 // 콘솔이나 다른 화면에서 쓰기 편하도록 여기서 다시 내보낸다.
@@ -557,13 +557,43 @@ export function initApp(studentId) {
     if (!file) return;
     if (els.quickOcrBtn) els.quickOcrBtn.disabled = true;
     try {
-      const { text, confidence } = await recognizeImage(file, (step, percent) => {
+      const { text, confidence, sections } = await recognizeImage(file, (step, percent) => {
         setOcrStatus(percent === null ? step + "..." : step + "... " + percent + "%");
       });
       if (!text) {
         setOcrStatus("글자를 찾지 못했어요. 더 크게 찍은 캡쳐로 해보세요.", true);
         return;
       }
+
+      // 칸이 나뉜 숙제표면 칸 구조를 그대로 살려 바로 할 일로 만든다
+      if (sections && sections.length >= 2) {
+        setOcrStatus("표에서 숙제 " + sections.length + "개를 넣는 중...");
+        const category = els.quickCategory ? els.quickCategory.dataset.value : CATEGORIES[0];
+        for (const section of sections) {
+          const guessed = getSource("academy").parse(
+            [section.name, ...section.lines].join(" ")
+          );
+          const subject = guessed.length ? guessed[0].subject : "기타";
+          await addTodo(studentId, {
+            title: section.name || (subject !== "기타" ? subject + " 숙제" : "숙제"),
+            category,
+            subject,
+            items: section.lines,
+            date: parseDueDate(section.date),
+            completed: false,
+            addedBy: "self",
+            source: "academy",
+          });
+        }
+        setOcrStatus(
+          "표에서 숙제 " + sections.length + "개를 넣었어요 (정확도 " +
+            Math.round(confidence) + "%). 틀린 건 눌러서 고쳐주세요."
+        );
+        state.addOpen = false;
+        render();
+        return;
+      }
+
       const box = els.quickInput;
       box.value = box.value.trim() ? box.value.trim() + "\n" + text : text;
       setOcrStatus("읽었어요 (정확도 " + Math.round(confidence) + "%). 틀린 글자는 고쳐주세요.");
