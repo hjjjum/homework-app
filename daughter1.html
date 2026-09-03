@@ -40,12 +40,25 @@
         </button>
 
         <div class="add-form" id="add-form" hidden>
+          <span class="field-label" id="quick-source-label">입력 방법</span>
+          <!-- 버튼은 app.js가 js/sources/index.js 목록을 보고 만든다 -->
+          <div class="filters" id="quick-source" aria-labelledby="quick-source-label"></div>
+          <p class="hint" id="quick-source-hint"></p>
+
           <label for="quick-input">할 일</label>
-          <textarea class="field" id="quick-input" rows="3" placeholder="수학 익힘책 32쪽"></textarea>
-          <p class="hint">여러 줄을 붙여넣으면 줄마다 하나씩 추가돼요.</p>
+          <textarea class="field" id="quick-input" rows="4" placeholder="수학 익힘책 32쪽"></textarea>
+
+          <!-- 캡쳐 이미지에서 글자 읽기 -->
+          <div class="ocr-row">
+            <input type="file" id="quick-image" accept="image/*" hidden />
+            <button type="button" class="btn btn--ghost btn--block" id="quick-ocr-btn">
+              캡쳐 이미지에서 글자 읽기
+            </button>
+          </div>
+          <p class="hint" id="quick-ocr-status" hidden></p>
 
           <span class="field-label" id="quick-category-label">카테고리</span>
-          <!-- 칩은 app.js가 만든다 -->
+          <!-- 칩은 app.js가 채운다 -->
           <div class="chip-group" id="quick-category" aria-labelledby="quick-category-label"></div>
 
           <label for="quick-date">마감일 (선택)</label>
@@ -55,6 +68,7 @@
             <button type="button" class="btn btn--primary" id="quick-add-btn">추가</button>
             <button type="button" class="btn btn--ghost" id="add-cancel">취소</button>
           </div>
+        </div>
         </div>
       </section>
 

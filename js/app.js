@@ -10,6 +10,7 @@ import {
   deleteCompletedTodos,
   listenTodos,
   CATEGORIES,
+  SUBJECTS,
 } from "./db.js";
 import {
   ALL,
@@ -24,6 +25,8 @@ import {
   allItemsDone,
 } from "./todo-logic.js";
 import { parseManualInput } from "./sources/manual-input.js";
+import { INPUT_SOURCES, getSource } from "./sources/index.js";
+import { recognizeImage, imageFromPaste } from "./ocr.js";
 
 // 순수 로직은 todo-logic.js, 입력 파싱은 sources/ 아래로 분리되어 있다.
 // 콘솔이나 다른 화면에서 쓰기 편하도록 여기서 다시 내보낸다.
@@ -60,7 +63,12 @@ export function initApp(studentId) {
     filters: $("filters"),
     addToggle: $("add-toggle"),
     addForm: $("add-form"),
+    quickSource: $("quick-source"),
+    quickSourceHint: $("quick-source-hint"),
     quickInput: $("quick-input"),
+    quickOcrBtn: $("quick-ocr-btn"),
+    quickImage: $("quick-image"),
+    quickOcrStatus: $("quick-ocr-status"),
     quickCategory: $("quick-category"),
     quickDate: $("quick-date"),
     quickAddBtn: $("quick-add-btn"),
@@ -77,6 +85,7 @@ export function initApp(studentId) {
     todos: [],          // listenTodos가 넘겨준 원본 (최신순)
     filter: ALL,
     addOpen: false,
+    sourceId: INPUT_SOURCES[0].id,
     completedOpen: false,
     editingId: null,    // 인라인 수정 중인 항목
     confirmingId: null, // 삭제 확인 대기 중인 항목
@@ -466,10 +475,32 @@ export function initApp(studentId) {
     render();
   }
 
-  /** 빠른 추가: 여러 줄을 붙여넣으면 줄 수만큼 항목이 만들어진다. */
+  /**
+   * 입력 방법 버튼. 엄마 화면과 같은 js/sources/ 목록을 그대로 쓴다.
+   * 학원에서 온 카톡을 아이가 직접 붙여넣어도 과목과 세부 항목이 나뉜다.
+   */
+  function renderSourcePicker() {
+    if (!els.quickSource) return;
+    els.quickSource.textContent = "";
+    for (const source of INPUT_SOURCES) {
+      const btn = makeEl("button", "tab tab--all", source.label);
+      btn.type = "button";
+      btn.dataset.sourceId = source.id;
+      btn.setAttribute("aria-pressed", String(state.sourceId === source.id));
+      els.quickSource.appendChild(btn);
+    }
+    const current = getSource(state.sourceId);
+    if (els.quickSourceHint) {
+      els.quickSourceHint.textContent = current.hint || "";
+      els.quickSourceHint.hidden = !current.hint;
+    }
+  }
+
+  /** 빠른 추가: 고른 입력 방법으로 나눠서 한꺼번에 넣는다. */
   async function handleQuickAdd() {
-    const titles = parseManualInput(els.quickInput ? els.quickInput.value : "");
-    if (titles.length === 0) {
+    const source = getSource(state.sourceId);
+    const parsedList = source.parse(els.quickInput ? els.quickInput.value : "");
+    if (parsedList.length === 0) {
       setStatus("할 일을 입력해 주세요.", true);
       if (els.quickInput) els.quickInput.focus();
       return;
@@ -481,26 +512,67 @@ export function initApp(studentId) {
     els.quickAddBtn.textContent = "추가 중...";
     try {
       // 순서대로 넣어야 createdAt 순서가 입력 순서와 맞는다.
-      for (const title of titles) {
+      for (const parsed of parsedList) {
+        const data = typeof parsed === "string" ? { title: parsed } : parsed || {};
+        const subject = SUBJECTS.includes(data.subject) ? data.subject : "기타";
+        let title = data.title || "";
+        if (!title) title = (subject !== "기타" ? subject + " " : "") + "숙제";
+
         await addTodo(studentId, {
           title,
           category,
+          subject,
+          items: Array.isArray(data.items) ? data.items : [],
+          memo: data.memo || "",
           date,
           completed: false,
           addedBy: "self",
-          source: "manual",
+          source: state.sourceId,
         });
       }
       els.quickInput.value = "";
       if (els.quickDate) els.quickDate.value = "";
+      setOcrStatus("");
       state.addOpen = false;
-      setStatus(titles.length + "개 추가했어요.");
+      setStatus(parsedList.length + "개 추가했어요.");
       render();
     } catch (err) {
       reportError("추가", err);
     } finally {
       els.quickAddBtn.disabled = false;
       els.quickAddBtn.textContent = "추가";
+    }
+  }
+
+  // --- 캡쳐 이미지에서 글자 읽기 -------------------------------------------
+
+  function setOcrStatus(message, isError) {
+    if (!els.quickOcrStatus) return;
+    els.quickOcrStatus.textContent = message || "";
+    els.quickOcrStatus.hidden = !message;
+    els.quickOcrStatus.dataset.error = isError ? "true" : "false";
+  }
+
+  async function readImage(file) {
+    if (!file) return;
+    if (els.quickOcrBtn) els.quickOcrBtn.disabled = true;
+    try {
+      const { text, confidence } = await recognizeImage(file, (step, percent) => {
+        setOcrStatus(percent === null ? step + "..." : step + "... " + percent + "%");
+      });
+      if (!text) {
+        setOcrStatus("글자를 찾지 못했어요. 더 크게 찍은 캡쳐로 해보세요.", true);
+        return;
+      }
+      const box = els.quickInput;
+      box.value = box.value.trim() ? box.value.trim() + "\n" + text : text;
+      setOcrStatus("읽었어요 (정확도 " + Math.round(confidence) + "%). 틀린 글자는 고쳐주세요.");
+      box.focus();
+    } catch (err) {
+      console.error("[app:" + studentId + "] OCR 실패", err);
+      setOcrStatus(err.message || "이미지를 읽지 못했어요.", true);
+    } finally {
+      if (els.quickOcrBtn) els.quickOcrBtn.disabled = false;
     }
   }
 
@@ -593,7 +665,35 @@ export function initApp(studentId) {
     els.quickAddBtn.addEventListener("click", handleQuickAdd);
   }
 
+  if (els.quickSource) {
+    els.quickSource.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-source-id]");
+      if (!btn) return;
+      state.sourceId = btn.dataset.sourceId;
+      renderSourcePicker();
+    });
+  }
+
+  if (els.quickOcrBtn && els.quickImage) {
+    els.quickOcrBtn.addEventListener("click", () => els.quickImage.click());
+    els.quickImage.addEventListener("change", () => {
+      readImage(els.quickImage.files && els.quickImage.files[0]);
+      els.quickImage.value = ""; // 같은 파일을 다시 골라도 동작하도록
+    });
+  }
+
+  if (els.quickInput) {
+    els.quickInput.addEventListener("paste", (e) => {
+      const file = imageFromPaste(e);
+      if (file) {
+        e.preventDefault();
+        readImage(file);
+      }
+    });
+  }
+
   if (els.quickCategory) buildCategoryChips(els.quickCategory, CATEGORIES[0]);
+  renderSourcePicker();
 
   // --- 실시간 구독 ---------------------------------------------------------
 

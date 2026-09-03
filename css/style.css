@@ -1235,3 +1235,31 @@ textarea.field {
 #panel-input {
   padding-bottom: 84px;
 }
+
+/* --- 캡쳐 이미지에서 글자 읽기 -------------------------------------------- */
+
+.ocr-row {
+  margin: 10px 0 4px;
+}
+
+/* OCR 진행/결과 안내. 오류일 때만 빨갛게. */
+#ocr-status[data-error="true"],
+#quick-ocr-status[data-error="true"] {
+  color: var(--danger);
+}
+
+#ocr-status,
+#quick-ocr-status {
+  margin: 4px 0 14px;
+}
+
+/* 딸 화면 추가 폼 안의 입력 방법 버튼은 조금 작게 */
+#quick-source {
+  padding-bottom: 6px;
+}
+
+#quick-source .tab {
+  min-height: 38px;
+  padding: 0 12px;
+  font-size: 14px;
+}

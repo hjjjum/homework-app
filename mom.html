@@ -43,6 +43,15 @@
           <textarea class="field field--tall" id="raw-input" rows="6"
             placeholder="수학 익힘책 32쪽&#10;영어 단어 20개 외우기&#10;준비물: 물감, 붓"></textarea>
 
+          <!-- 캡쳐 이미지에서 글자 읽기 (표처럼 복사가 안 되는 알림장용) -->
+          <div class="ocr-row">
+            <input type="file" id="ocr-image" accept="image/*" hidden />
+            <button type="button" class="btn btn--ghost btn--block" id="ocr-btn">
+              캡쳐 이미지에서 글자 읽기
+            </button>
+          </div>
+          <p class="hint" id="ocr-status" hidden></p>
+
           <button type="button" class="btn btn--primary btn--block" id="split-btn">항목 나누기</button>
         </div>
 

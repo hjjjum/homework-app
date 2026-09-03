@@ -18,6 +18,7 @@ import {
   countTodo,
 } from "./todo-logic.js";
 import { INPUT_SOURCES, getSource } from "./sources/index.js";
+import { recognizeImage, imageFromPaste } from "./ocr.js";
 
 /** 화면에 보여줄 딸 이름. db의 studentId와 짝을 이룬다. */
 export const STUDENT_LABEL = {
@@ -65,6 +66,9 @@ export function initMom() {
     sourceHint: $("source-hint"),
     rawInput: $("raw-input"),
     splitBtn: $("split-btn"),
+    ocrBtn: $("ocr-btn"),
+    ocrImage: $("ocr-image"),
+    ocrStatus: $("ocr-status"),
     draftList: $("draft-list"),
     draftCount: $("draft-count"),
     sendBar: $("send-bar"),
@@ -583,6 +587,59 @@ export function initMom() {
       if (!btn) return;
       state.sourceId = btn.dataset.sourceId;
       renderSourcePicker();
+    });
+  }
+
+  // --- 캡쳐 이미지에서 글자 읽기 ---
+  function setOcrStatus(message, isError) {
+    if (!els.ocrStatus) return;
+    els.ocrStatus.textContent = message || "";
+    els.ocrStatus.hidden = !message;
+    els.ocrStatus.dataset.error = isError ? "true" : "false";
+  }
+
+  async function readImage(file) {
+    if (!file) return;
+    if (els.ocrBtn) els.ocrBtn.disabled = true;
+    try {
+      const { text, confidence } = await recognizeImage(file, (step, percent) => {
+        setOcrStatus(percent === null ? step + "..." : step + "... " + percent + "%");
+      });
+      if (!text) {
+        setOcrStatus("글자를 찾지 못했습니다. 더 크게 찍은 캡쳐로 해보세요.", true);
+        return;
+      }
+      // 기존 내용이 있으면 아래에 이어 붙인다
+      const box = els.rawInput;
+      box.value = box.value.trim() ? box.value.trim() + "\n" + text : text;
+      setOcrStatus(
+        "읽었습니다 (정확도 " + Math.round(confidence) + "%). 틀린 글자는 고친 뒤 눌러주세요."
+      );
+      box.focus();
+    } catch (err) {
+      console.error("[mom] OCR 실패", err);
+      setOcrStatus(err.message || "이미지를 읽지 못했습니다.", true);
+    } finally {
+      if (els.ocrBtn) els.ocrBtn.disabled = false;
+    }
+  }
+
+  if (els.ocrBtn && els.ocrImage) {
+    els.ocrBtn.addEventListener("click", () => els.ocrImage.click());
+    els.ocrImage.addEventListener("change", () => {
+      readImage(els.ocrImage.files && els.ocrImage.files[0]);
+      els.ocrImage.value = ""; // 같은 파일을 다시 골라도 동작하도록
+    });
+  }
+
+  // 입력창에 이미지를 바로 붙여넣어도(Ctrl+V) 읽는다
+  if (els.rawInput) {
+    els.rawInput.addEventListener("paste", (e) => {
+      const file = imageFromPaste(e);
+      if (file) {
+        e.preventDefault();
+        readImage(file);
+      }
     });
   }
 

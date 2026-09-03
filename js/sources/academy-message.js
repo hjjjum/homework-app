@@ -95,6 +95,12 @@ const ITEM_PATTERNS = [
 const SECTION_PATTERN =
   /^(READING|LISTENING|GRAMMAR|SPEAKING|WRITING|NOVEL|IB|VOCAB(?:ULARY)?|단어\s*\(?Vocabulary\)?|단어|어휘|본문|문법|독해)\b\s*[:|]?\s*/i;
 
+/** 번호 없는 줄을 앞 항목에 이어 붙일 때 허용하는 최대 길이 */
+const MAX_APPEND_LENGTH = 140;
+
+/** 표 머리글이라 제목으로 쓰면 안 되는 말들 */
+const TABLE_HEADER_WORDS = /제출\s*날짜|due\s*date|^구분|숙제\s*\(homework\)/i;
+
 /** 머리말 앞뒤에서 떼어낼 장식 */
 const DECOR = "\\s☑☒✅✔️■□▶△▲◆●※★☀✏️📄📢🔔📌📖";
 const TITLE_TRIM_START = new RegExp("^[" + DECOR + "]+", "u");
@@ -181,9 +187,11 @@ export function parseAcademyMessage(text) {
   // 단, 첫 줄이 이미 숙제 항목이면(번호로 시작하면) 제목으로 쓰지 않는다.
   const firstIsItem =
     matchItemPrefix(lines[0]) !== null || matchSection(lines[0]) !== null;
-  const title = firstIsItem
+  let title = firstIsItem
     ? ""
     : lines[0].replace(TITLE_TRIM_START, "").replace(TITLE_TRIM_END, "").trim();
+  // 캡쳐를 읽으면 "구분 | 제출 날짜" 같은 표 머리글이 첫 줄로 잡힌다. 제목으로 쓰지 않는다.
+  if (title && TABLE_HEADER_WORDS.test(title)) title = "";
 
   // --- 과제 시작 지점 찾기 ---
   let startAt = -1;
@@ -224,18 +232,31 @@ export function parseAcademyMessage(text) {
     if (found) {
       section = found.name;
       if (found.rest) {
-        // 뒤에 번호 항목이 이어지는 영역이면 교재 안내일 뿐이므로 메모로 넘긴다.
-        const nextIsItem =
-          i + 1 < lines.length && matchItemPrefix(lines[i + 1]) !== null;
-        if (nextIsItem) memoLines.push(found.name + " " + found.rest);
-        else items.push(found.name + " " + found.rest);
+        // 캡쳐를 읽으면 표의 한 칸이 "READING  3. 핸드북..." 처럼
+        // 영역 이름과 항목이 같은 줄로 붙어 나온다. 그 경우 항목으로 살린다.
+        const restBody = matchItemPrefix(found.rest);
+        if (restBody !== null) {
+          if (restBody) items.push(found.name + " · " + restBody);
+        } else {
+          // 뒤에 번호 항목이 이어지면 이 줄은 교재 안내일 뿐이므로 메모로.
+          const nextIsItem =
+            i + 1 < lines.length && matchItemPrefix(lines[i + 1]) !== null;
+          if (nextIsItem) memoLines.push(found.name + " " + found.rest);
+          else items.push(found.name + " " + found.rest);
+        }
       }
       continue;
     }
 
-    // 번호가 없는 줄: 바로 앞 항목의 설명이면 이어 붙이고, 아니면 메모로
-    if (items.length > 0) {
-      items[items.length - 1] += " " + line;
+    // 번호가 없는 줄: 바로 앞 항목의 설명으로 보고 이어 붙인다.
+    // 다만 캡쳐를 읽은 글은 표의 다음 칸이 번호 없이 이어지는 경우가 많아,
+    // 무작정 붙이면 여러 숙제가 한 덩어리가 된다. 앞 항목이 이미 길면
+    // 새 항목으로 떼어 놓고 사람이 확인하게 한다.
+    const last = items.length - 1;
+    if (last >= 0 && items[last].length + line.length <= MAX_APPEND_LENGTH) {
+      items[last] += " " + line;
+    } else if (last >= 0) {
+      items.push(section ? section + " · " + line : line);
     } else {
       memoLines.push(line);
     }
