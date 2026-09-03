@@ -969,13 +969,111 @@ textarea.field {
 }
 
 .watch-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 14px 16px;
+  display: block;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius);
+  overflow: hidden;
+}
+
+/* 제목 줄. 눌러서 펼치는 버튼이지만 데이터는 건드리지 않는다. */
+.watch-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 14px 16px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* 펼칠 내용이 없는 항목은 눌러도 소용없으니 손가락 모양을 쓰지 않는다 */
+.watch-head--plain {
+  cursor: default;
+}
+
+.watch-caret {
+  flex: 0 0 auto;
+  align-self: center;
+  width: 9px;
+  height: 9px;
+  margin-left: auto;
+  border-right: 2px solid var(--ink-faint);
+  border-bottom: 2px solid var(--ink-faint);
+  transform: rotate(45deg) translate(-2px, -2px);
+  transition: transform 0.2s ease;
+}
+
+.watch-head[aria-expanded="true"] .watch-caret {
+  transform: rotate(-135deg) translate(-2px, -2px);
+}
+
+/* 펼친 세부 내용 — 읽기만 하는 목록 */
+.watch-detail {
+  padding: 2px 16px 14px 52px;
+  border-top: 1px solid var(--line);
+}
+
+.watch-subitems {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.watch-subitem {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.watch-submark {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  border: 2px solid var(--line-strong);
+  border-radius: 6px;
+  color: transparent;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.watch-subitem.is-done .watch-submark {
+  background: var(--progress);
+  border-color: var(--progress);
+  color: #fff;
+}
+
+.watch-subtext {
+  flex: 1;
+  color: var(--ink-soft);
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.watch-subitem.is-done .watch-subtext {
+  color: var(--ink-faint);
+  text-decoration: line-through;
+}
+
+.watch-memo {
+  margin: 12px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-faint);
+  white-space: pre-wrap;
 }
 
 .watch-mark {

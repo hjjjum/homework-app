@@ -93,6 +93,8 @@ export function initMom() {
     nextKey: 1,
     watchStudent: STUDENT_IDS[0],
     watchTodos: [],
+    // 현황 탭에서 펼쳐 놓은 항목들. 실시간 갱신이 와도 접히지 않게 기억해 둔다.
+    expandedIds: new Set(),
     unsubscribe: null,
     sending: false,
   };
@@ -478,9 +480,17 @@ export function initMom() {
     }
   }
 
-  /** 읽기 전용 항목. 체크박스도 버튼도 없다 — 눌러도 아무 일이 없어야 한다. */
+  /**
+   * 읽기 전용 항목.
+   * 눌러서 세부 내용을 펼칠 수는 있지만, 체크박스나 수정 칸은 만들지 않는다.
+   * (여기서 체크가 되면 엄마가 딸 대신 완료 처리를 해버리게 된다)
+   */
   function renderWatchItem(todo) {
     const li = makeEl("li", "watch-item" + (todo.completed ? " is-done" : ""));
+
+    const items = Array.isArray(todo.items) ? todo.items : [];
+    const hasDetail = items.length > 0 || !!todo.memo;
+    const open = state.expandedIds.has(todo.id);
 
     const mark = makeEl("span", "watch-mark");
     mark.setAttribute("aria-hidden", "true");
@@ -490,16 +500,60 @@ export function initMom() {
     body.appendChild(makeEl("span", "watch-title", todo.title));
 
     const meta = makeEl("span", "todo-meta");
+    if (todo.subject && todo.subject !== "기타") {
+      meta.appendChild(
+        makeEl("span", "badge badge--subject subject--" + SUBJECT_KEY[todo.subject], todo.subject)
+      );
+    }
     meta.appendChild(makeEl("span", "badge badge--" + CATEGORY_KEY[todo.category], todo.category));
     const due = formatDue(todo.date);
     if (due) meta.appendChild(makeEl("span", "due due--" + due.tone, due.text));
     if (todo.addedBy === "mom") meta.appendChild(makeEl("span", "from-mom", "내가 보냄"));
-    if (todo.memo) meta.appendChild(makeEl("span", "memo", todo.memo));
+    if (items.length > 0) {
+      const counts = countTodo(todo);
+      meta.appendChild(makeEl("span", "item-count", counts.완료 + "/" + counts.총));
+    }
     body.appendChild(meta);
 
-    // 스크린리더에게도 완료 여부를 알린다
-    li.setAttribute("aria-label", todo.title + (todo.completed ? ", 완료함" : ", 아직 안 함"));
-    li.append(mark, body);
+    if (hasDetail) {
+      // 펼치기 버튼. 보기만 바꾸므로 데이터는 건드리지 않는다.
+      const head = makeEl("button", "watch-head");
+      head.type = "button";
+      head.dataset.action = "expand";
+      head.dataset.id = todo.id;
+      head.setAttribute("aria-expanded", String(open));
+      head.setAttribute(
+        "aria-label",
+        todo.title + (open ? ", 세부 내용 접기" : ", 세부 내용 펼치기")
+      );
+      head.append(mark, body, makeEl("span", "watch-caret"));
+      li.appendChild(head);
+
+      if (open) {
+        const detail = makeEl("div", "watch-detail");
+        if (items.length > 0) {
+          const ul = makeEl("ul", "watch-subitems");
+          for (const item of items) {
+            const sub = makeEl("li", "watch-subitem" + (item.done ? " is-done" : ""));
+            const box = makeEl("span", "watch-submark");
+            box.setAttribute("aria-hidden", "true");
+            box.textContent = item.done ? "✓" : "";
+            sub.append(box, makeEl("span", "watch-subtext", item.text));
+            sub.setAttribute("aria-label", item.text + (item.done ? ", 했음" : ", 아직"));
+            ul.appendChild(sub);
+          }
+          detail.appendChild(ul);
+        }
+        if (todo.memo) detail.appendChild(makeEl("p", "watch-memo", todo.memo));
+        li.appendChild(detail);
+      }
+    } else {
+      const plain = makeEl("div", "watch-head watch-head--plain");
+      plain.append(mark, body);
+      li.appendChild(plain);
+      li.setAttribute("aria-label", todo.title + (todo.completed ? ", 완료함" : ", 아직 안 함"));
+    }
+
     return li;
   }
 
@@ -531,6 +585,7 @@ export function initMom() {
       state.unsubscribe = null;
     }
     state.watchTodos = [];
+    state.expandedIds.clear();
     renderWatch();
 
     state.unsubscribe = listenTodos(
@@ -690,6 +745,17 @@ export function initMom() {
     els.draftList.addEventListener("click", onDraftEvent);
     els.draftList.addEventListener("input", onDraftEvent);
     els.draftList.addEventListener("change", onDraftEvent);
+  }
+
+  if (els.watchList) {
+    els.watchList.addEventListener("click", (e) => {
+      const btn = e.target.closest('[data-action="expand"]');
+      if (!btn) return;
+      const id = btn.dataset.id;
+      if (state.expandedIds.has(id)) state.expandedIds.delete(id);
+      else state.expandedIds.add(id);
+      renderWatchList();
+    });
   }
 
   if (els.studentTabs) {
