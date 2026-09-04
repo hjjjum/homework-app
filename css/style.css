@@ -1361,3 +1361,42 @@ textarea.field {
   padding: 0 12px;
   font-size: 14px;
 }
+
+/* ---------------------------------------------------------------------------
+   엄마 화면 · 현황 카드 (두 아이를 한 화면에)
+   진행률 바·이름·응원 칩 스타일은 theme-sticker.css 에 있고, 여기에는
+   그쪽에 없는 "남은 항목 미리보기"만 둔다. 읽기 전용이라 전부 글자다.
+   --------------------------------------------------------------------------- */
+.kid + .kid { margin-top: 14px; }
+
+.kid-text { display: flex; flex-direction: column; gap: 2px; }
+
+.kid-remain {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.kid-remain li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--ink, #2f2a33);
+}
+
+.kid-remain li::before {
+  content: "";
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--yellow, #ffc93c);
+}
+
+.kid-remain-text { white-space: pre-wrap; word-break: break-word; }

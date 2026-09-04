@@ -161,7 +161,24 @@ mom.html        →  js/mom.js  ┤→  js/db.js  →  js/firebase-config.js  �
 `css/style.css` 맨 위 `:root`에 원색 5개(`--heather` `--viridian` `--sandstone` `--candy` `--azur`)를
 모아 두었고, 나머지 토큰은 여기서 파생된다. 색을 바꿀 일이 있으면 원색만 고친다.
 `--cat-*`(카테고리) / `--sub-*`(과목) 토큰이 각 뱃지 색의 유일한 출처다.
-아이콘은 팔레트에 맞춰 생성한 PNG이므로, 색을 바꾸면 `icons/`도 다시 만들어야 한다.
+## 앱 아이콘
+
+`icons/*.png`는 손으로 그린 게 아니라 `tools/make-icons.mjs`가 만든다.
+
+```bash
+node tools/make-icons.mjs      # icons/{daughter1,daughter2,mom}-{180,192,512}.png
+```
+
+외부 라이브러리 없이 Node의 zlib만으로 PNG를 쓰고, 도형은 4배로 그린 뒤 줄여 가장자리를
+부드럽게 만든다. 색은 `css/theme-sticker.css`와 같은 값을 스크립트 위 `C`에 적어 두었으므로
+테마 색을 바꾸면 여기도 같이 고치고 다시 돌린다.
+
+- 세 화면이 각자 다른 아이콘을 쓴다(첫째=별, 둘째=체리, 엄마=하트). **하나로 합치지 말 것** —
+  홈 화면에 세 개가 나란히 있어서 색과 그림이 다르지 않으면 구분이 안 된다.
+- 안드로이드는 아이콘 가장자리를 잘라내므로(`purpose: any maskable`), 중요한 그림은
+  한가운데 원(반지름 0.4) 안에 둔다. 배경은 끝까지 채운다.
+- 아이콘을 바꾸면 매니페스트 3개의 `theme_color`와 각 HTML의 `<meta name="theme-color">`도
+  같은 색으로 맞춘다 (상태 표시줄과 아이콘이 이어져 보인다).
 
 ## PWA / 서비스워커
 

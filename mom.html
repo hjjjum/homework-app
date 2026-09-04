@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>엄마 화면</title>
   <meta name="description" content="엄마 화면" />
-  <meta name="theme-color" content="#877499" />
+  <meta name="theme-color" content="#B9A7F0" />
   <link rel="manifest" href="manifest-mom.json" />
   <link rel="icon" href="icons/mom-192.png" type="image/png" />
   <link rel="apple-touch-icon" href="icons/mom-180.png" />
@@ -14,6 +14,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="엄마 화면" />
   <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/theme-sticker.css" />
 </head>
 <body>
   <div class="app app--wide">
@@ -67,24 +68,13 @@
       </section>
 
       <!-- ================= 탭 2: 현황 보기 ================= -->
+      <!-- 두 아이를 한 화면에 세로로 나란히 보여준다. 읽기 전용이라
+           목록에 button/input을 만들지 않는다 (구조적으로 체크 불가). -->
       <section id="panel-watch" role="tabpanel" aria-label="현황 보기" hidden>
-        <!-- 딸 전환 버튼은 mom.js가 만든다 -->
-        <nav class="filters" id="student-tabs" aria-label="딸 선택"></nav>
-
-        <div class="progress">
-          <p class="progress-text">
-            <span class="progress-count" id="watch-progress-count">0/0 완료</span>
-            <span class="progress-percent" id="watch-progress-percent">0%</span>
-          </p>
-          <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-            <div class="progress-fill" id="watch-progress-fill"></div>
-          </div>
-          <div class="cat-progress" id="category-progress"></div>
-        </div>
-
         <p class="notice">이 화면은 확인용이며, 체크와 수정은 각자 딸의 화면에서만 가능합니다.</p>
 
-        <ul class="watch-list" id="watch-list"></ul>
+        <!-- 아이별 카드는 mom.js가 만든다 -->
+        <div id="kid-cards"></div>
 
         <p class="status" id="watch-status" role="status" hidden></p>
       </section>

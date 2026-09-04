@@ -108,3 +108,17 @@ export function formatDue(dateStr, today = new Date()) {
   if (days === 1) return { text: "내일", tone: "soon" };
   return { text: m + "월 " + d + "일", tone: "later" };
 }
+
+/**
+ * 두 날짜가 같은 날인가 (그 사람이 사는 곳의 날짜 기준).
+ * toISOString()으로 비교하면 UTC라서 한국(UTC+9)에서는 자정~오전 9시가
+ * 어제로 잡힌다. 아침에 보낸 응원이 안 보이는 걸 막기 위한 것이다.
+ */
+export function sameDay(a, b) {
+  if (!(a instanceof Date) || !(b instanceof Date)) return false;
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}

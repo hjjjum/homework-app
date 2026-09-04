@@ -7,7 +7,7 @@
 // "현황 보기"는 의도적으로 읽기 전용이다. 체크/수정/삭제는 각자 딸 화면에서만
 // 할 수 있게 두어, 엄마가 대신 체크해 버리는 상황을 막는다.
 // ---------------------------------------------------------------------------
-import { addTodo, listenTodos, CATEGORIES, STUDENT_IDS, SUBJECTS } from "./db.js";
+import { addTodo, listenTodos, setCheer, CATEGORIES, STUDENT_IDS, SUBJECTS } from "./db.js";
 import {
   ALL,
   CATEGORY_KEY,
@@ -77,12 +77,7 @@ export function initMom() {
     inputStatus: $("input-status"),
 
     // 현황 탭
-    studentTabs: $("student-tabs"),
-    watchProgressCount: $("watch-progress-count"),
-    watchProgressPercent: $("watch-progress-percent"),
-    watchProgressFill: $("watch-progress-fill"),
-    categoryProgress: $("category-progress"),
-    watchList: $("watch-list"),
+    kidCards: $("kid-cards"),
     watchStatus: $("watch-status"),
   };
 
@@ -91,10 +86,10 @@ export function initMom() {
     sourceId: INPUT_SOURCES[0].id,
     drafts: [],          // 보내기 전의 항목 카드들
     nextKey: 1,
-    watchStudent: STUDENT_IDS[0],
-    watchTodos: [],
-    // 현황 탭에서 펼쳐 놓은 항목들. 실시간 갱신이 와도 접히지 않게 기억해 둔다.
-    expandedIds: new Set(),
+    // 아이별 현황. 두 아이를 동시에 구독한다.
+    kids: Object.fromEntries(
+      STUDENT_IDS.map((id) => [id, { todos: [], loaded: false, error: "", cheerNote: "" }])
+    ),
     unsubscribe: null,
     sending: false,
   };
@@ -434,178 +429,165 @@ export function initMom() {
   }
 
   // --- 현황 보기 탭 (읽기 전용) --------------------------------------------
+  //
+  // 두 아이를 한 화면에 세로로 나란히 놓는다. 아이별로 진행률 · 남은 항목 몇 개 ·
+  // 마지막으로 움직인 시각만 보여준다.
+  // 목록에 체크박스나 입력칸을 만들지 않는다 — 엄마가 대신 완료 처리를 하게 되기 때문.
+  // (응원 한마디 버튼은 예외다. 할일이 아니라 meta/cheer 에만 쓴다)
 
-  function renderStudentTabs() {
-    if (!els.studentTabs) return;
-    els.studentTabs.textContent = "";
-    for (const id of STUDENT_IDS) {
-      const btn = makeEl("button", "tab tab--all", STUDENT_LABEL[id]);
-      btn.type = "button";
-      btn.dataset.student = id;
-      btn.setAttribute("aria-pressed", String(state.watchStudent === id));
-      els.studentTabs.appendChild(btn);
-    }
+  /** 카드에 미리 보여줄 남은 항목 개수 */
+  const PREVIEW_COUNT = 3;
+
+  /** 응원 한마디 기본 문구 */
+  const CHEER_CHIPS = [
+    "잘하고 있어",
+    "저녁 전에 한 개만 더",
+    "다 하면 같이 놀자",
+    "오늘도 애썼어",
+  ];
+
+  /** "방금 전" / "10분 전" / "오후 3:20" */
+  function timeAgo(date) {
+    if (!(date instanceof Date) || isNaN(date)) return "";
+    const min = Math.round((Date.now() - date.getTime()) / 60000);
+    if (min < 1) return "방금 전";
+    if (min < 60) return min + "분 전";
+    if (min < 24 * 60) return Math.round(min / 60) + "시간 전";
+    return date.toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" });
   }
 
-  function renderWatchProgress() {
-    const p = calcProgress(state.watchTodos);
-    const all = p[ALL];
-
-    if (els.watchProgressCount) {
-      els.watchProgressCount.textContent = all.완료 + "/" + all.총 + " 완료";
+  /** 그 아이가 마지막으로 움직인 시각 (체크·수정 시각 중 가장 최근) */
+  function lastMoved(todos) {
+    let latest = null;
+    for (const t of todos) {
+      const at = t.updatedAt && typeof t.updatedAt.toDate === "function"
+        ? t.updatedAt.toDate()
+        : null;
+      if (at && (!latest || at > latest)) latest = at;
     }
-    if (els.watchProgressPercent) els.watchProgressPercent.textContent = all.비율 + "%";
-    if (els.watchProgressFill) {
-      els.watchProgressFill.style.width = all.비율 + "%";
-      const bar = els.watchProgressFill.parentElement;
-      if (bar) {
-        bar.setAttribute("aria-valuenow", String(all.비율));
-        bar.setAttribute("aria-valuetext", all.완료 + "개 중 " + all.총 + "개 완료");
-      }
-    }
-
-    if (!els.categoryProgress) return;
-    els.categoryProgress.textContent = "";
-    for (const c of CATEGORIES) {
-      const row = makeEl("div", "cat-row");
-      row.append(makeEl("span", "badge badge--" + CATEGORY_KEY[c], c));
-
-      const track = makeEl("div", "cat-track");
-      const fill = makeEl("div", "cat-fill cat-fill--" + CATEGORY_KEY[c]);
-      fill.style.width = p[c].비율 + "%";
-      track.appendChild(fill);
-
-      row.append(track, makeEl("span", "cat-num", p[c].완료 + "/" + p[c].총));
-      els.categoryProgress.appendChild(row);
-    }
+    return latest;
   }
 
-  /**
-   * 읽기 전용 항목.
-   * 눌러서 세부 내용을 펼칠 수는 있지만, 체크박스나 수정 칸은 만들지 않는다.
-   * (여기서 체크가 되면 엄마가 딸 대신 완료 처리를 해버리게 된다)
-   */
-  function renderWatchItem(todo) {
-    const li = makeEl("li", "watch-item" + (todo.completed ? " is-done" : ""));
+  function renderKidCard(studentId) {
+    const kid = state.kids[studentId];
+    const todos = kid.todos;
+    const all = calcProgress(todos)[ALL];
 
-    const items = Array.isArray(todo.items) ? todo.items : [];
-    const hasDetail = items.length > 0 || !!todo.memo;
-    const open = state.expandedIds.has(todo.id);
+    const card = makeEl("section", "card kid");
+    card.dataset.student = studentId;
 
-    const mark = makeEl("span", "watch-mark");
-    mark.setAttribute("aria-hidden", "true");
-    mark.textContent = todo.completed ? "✓" : "";
+    const head = makeEl("div", "kid-card");
+    const text = makeEl("div", "kid-text");
+    text.appendChild(makeEl("span", "kid-name", STUDENT_LABEL[studentId]));
 
-    const body = makeEl("div", "watch-body");
-    body.appendChild(makeEl("span", "watch-title", todo.title));
+    const moved = lastMoved(todos);
+    const sub = [all.완료 + "/" + all.총 + " 완료"];
+    if (moved) sub.push("마지막 체크 " + timeAgo(moved));
+    text.appendChild(makeEl("span", "kid-sub", sub.join(" · ")));
+    head.appendChild(text);
+    card.appendChild(head);
 
-    const meta = makeEl("span", "todo-meta");
-    if (todo.subject && todo.subject !== "기타") {
-      meta.appendChild(
-        makeEl("span", "badge badge--subject subject--" + SUBJECT_KEY[todo.subject], todo.subject)
+    const bar = makeEl("div", "kid-bar");
+    bar.setAttribute("role", "progressbar");
+    bar.setAttribute("aria-valuemin", "0");
+    bar.setAttribute("aria-valuemax", "100");
+    bar.setAttribute("aria-valuenow", String(all.비율));
+    bar.setAttribute("aria-label", STUDENT_LABEL[studentId] + " 진행률");
+    const fill = makeEl("i");
+    fill.style.width = all.비율 + "%";
+    bar.appendChild(fill);
+    card.appendChild(bar);
+
+    // 남은 항목 미리보기 — 제목만, 누를 수 없는 글이다
+    const { active } = splitByCompleted(todos);
+    if (kid.error) {
+      card.appendChild(makeEl("p", "kid-sub", kid.error));
+    } else if (!kid.loaded) {
+      card.appendChild(makeEl("p", "kid-sub", "불러오는 중…"));
+    } else if (active.length === 0) {
+      card.appendChild(
+        makeEl("p", "kid-sub", todos.length ? "남은 할 일이 없어요 🎉" : "아직 할 일이 없습니다.")
       );
-    }
-    meta.appendChild(makeEl("span", "badge badge--" + CATEGORY_KEY[todo.category], todo.category));
-    const due = formatDue(todo.date);
-    if (due) meta.appendChild(makeEl("span", "due due--" + due.tone, due.text));
-    if (todo.addedBy === "mom") meta.appendChild(makeEl("span", "from-mom", "내가 보냄"));
-    if (items.length > 0) {
-      const counts = countTodo(todo);
-      meta.appendChild(makeEl("span", "item-count", counts.완료 + "/" + counts.총));
-    }
-    body.appendChild(meta);
-
-    if (hasDetail) {
-      // 펼치기 버튼. 보기만 바꾸므로 데이터는 건드리지 않는다.
-      const head = makeEl("button", "watch-head");
-      head.type = "button";
-      head.dataset.action = "expand";
-      head.dataset.id = todo.id;
-      head.setAttribute("aria-expanded", String(open));
-      head.setAttribute(
-        "aria-label",
-        todo.title + (open ? ", 세부 내용 접기" : ", 세부 내용 펼치기")
-      );
-      head.append(mark, body, makeEl("span", "watch-caret"));
-      li.appendChild(head);
-
-      if (open) {
-        const detail = makeEl("div", "watch-detail");
-        if (items.length > 0) {
-          const ul = makeEl("ul", "watch-subitems");
-          for (const item of items) {
-            const sub = makeEl("li", "watch-subitem" + (item.done ? " is-done" : ""));
-            const box = makeEl("span", "watch-submark");
-            box.setAttribute("aria-hidden", "true");
-            box.textContent = item.done ? "✓" : "";
-            sub.append(box, makeEl("span", "watch-subtext", item.text));
-            sub.setAttribute("aria-label", item.text + (item.done ? ", 했음" : ", 아직"));
-            ul.appendChild(sub);
-          }
-          detail.appendChild(ul);
-        }
-        if (todo.memo) detail.appendChild(makeEl("p", "watch-memo", todo.memo));
-        li.appendChild(detail);
-      }
     } else {
-      const plain = makeEl("div", "watch-head watch-head--plain");
-      plain.append(mark, body);
-      li.appendChild(plain);
-      li.setAttribute("aria-label", todo.title + (todo.completed ? ", 완료함" : ", 아직 안 함"));
+      const ul = makeEl("ul", "kid-remain");
+      for (const todo of active.slice(0, PREVIEW_COUNT)) {
+        const li = makeEl("li");
+        const counts = countTodo(todo);
+        const label =
+          counts.총 > 1 ? todo.title + " (" + counts.완료 + "/" + counts.총 + ")" : todo.title;
+        li.appendChild(makeEl("span", "kid-remain-text", label));
+        ul.appendChild(li);
+      }
+      card.appendChild(ul);
+      if (active.length > PREVIEW_COUNT) {
+        card.appendChild(
+          makeEl("p", "kid-sub", "외 " + (active.length - PREVIEW_COUNT) + "개 더 남았어요")
+        );
+      }
     }
 
-    return li;
-  }
-
-  function renderWatchList() {
-    if (!els.watchList) return;
-    els.watchList.textContent = "";
-
-    const { active, completed } = splitByCompleted(state.watchTodos);
-    if (active.length === 0 && completed.length === 0) {
-      els.watchList.appendChild(makeEl("li", "empty", "아직 할 일이 없습니다."));
-      return;
+    // 응원 한마디
+    const chips = makeEl("div", "cheer-chips");
+    for (const text of CHEER_CHIPS) {
+      const chip = makeEl("button", "cheer-chip", text);
+      chip.type = "button";
+      chip.dataset.cheer = text;
+      chip.dataset.student = studentId;
+      chips.appendChild(chip);
     }
-    // 미완료 먼저, 완료는 아래
-    for (const todo of [...active, ...completed]) {
-      els.watchList.appendChild(renderWatchItem(todo));
-    }
+    card.appendChild(chips);
+
+    if (kid.cheerNote) card.appendChild(makeEl("p", "kid-sub", kid.cheerNote));
+
+    return card;
   }
 
   function renderWatch() {
-    renderStudentTabs();
-    renderWatchProgress();
-    renderWatchList();
+    if (!els.kidCards) return;
+    els.kidCards.textContent = "";
+    for (const id of STUDENT_IDS) els.kidCards.appendChild(renderKidCard(id));
   }
 
-  /** 보고 있는 딸이 바뀌면 이전 구독을 끊고 새로 건다. */
+  /** 두 아이를 동시에 구독한다 (현황 탭을 처음 열 때 한 번만). */
   function subscribeWatch() {
-    if (state.unsubscribe) {
-      state.unsubscribe();
-      state.unsubscribe = null;
-    }
-    state.watchTodos = [];
-    state.expandedIds.clear();
-    renderWatch();
+    if (state.unsubscribe) return;
 
-    state.unsubscribe = listenTodos(
-      state.watchStudent,
-      (todos) => {
-        state.watchTodos = todos;
-        if (els.watchStatus) els.watchStatus.hidden = true;
-        renderWatch();
-      },
-      (err) => {
-        console.error("[mom] 현황 구독 실패", err);
-        if (els.watchStatus) {
-          els.watchStatus.hidden = false;
-          els.watchStatus.textContent =
-            "현황을 불러오지 못했습니다. (" + (err.code || err.message) + ")";
-          els.watchStatus.dataset.error = "true";
+    const stops = STUDENT_IDS.map((id) =>
+      listenTodos(
+        id,
+        (todos) => {
+          state.kids[id].todos = todos;
+          state.kids[id].loaded = true;
+          state.kids[id].error = "";
+          renderWatch();
+        },
+        (err) => {
+          console.error("[mom] 현황 구독 실패", id, err);
+          state.kids[id].error = "현황을 불러오지 못했습니다. (" + (err.code || err.message) + ")";
+          renderWatch();
         }
-      }
+      )
     );
+
+    state.unsubscribe = () => stops.forEach((stop) => stop());
+    renderWatch();
   }
+
+  /** 응원 한마디 보내기 (할일이 아니라 meta/cheer 문서에만 쓴다) */
+  async function sendCheer(studentId, text) {
+    const kid = state.kids[studentId];
+    kid.cheerNote = "보내는 중…";
+    renderWatch();
+    try {
+      await setCheer(studentId, text);
+      kid.cheerNote = "“" + text + "” 보냈어요";
+    } catch (err) {
+      console.error("[mom] 응원 보내기 실패", err);
+      kid.cheerNote = "응원을 보내지 못했습니다. (" + (err.code || err.message) + ")";
+    }
+    renderWatch();
+  }
+
 
   // --- 탭 전환 -------------------------------------------------------------
 
@@ -747,23 +729,11 @@ export function initMom() {
     els.draftList.addEventListener("change", onDraftEvent);
   }
 
-  if (els.watchList) {
-    els.watchList.addEventListener("click", (e) => {
-      const btn = e.target.closest('[data-action="expand"]');
-      if (!btn) return;
-      const id = btn.dataset.id;
-      if (state.expandedIds.has(id)) state.expandedIds.delete(id);
-      else state.expandedIds.add(id);
-      renderWatchList();
-    });
-  }
-
-  if (els.studentTabs) {
-    els.studentTabs.addEventListener("click", (e) => {
-      const btn = e.target.closest("[data-student]");
-      if (!btn || btn.dataset.student === state.watchStudent) return;
-      state.watchStudent = btn.dataset.student;
-      subscribeWatch();
+  if (els.kidCards) {
+    els.kidCards.addEventListener("click", (e) => {
+      const chip = e.target.closest("[data-cheer]");
+      if (!chip) return;
+      sendCheer(chip.dataset.student, chip.dataset.cheer);
     });
   }
 

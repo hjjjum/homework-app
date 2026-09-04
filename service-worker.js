@@ -10,7 +10,7 @@
 // 파일을 고친 뒤 배포할 때는 아래 CACHE_VERSION을 올려야 사용자에게 새 버전이 간다.
 // ---------------------------------------------------------------------------
 
-const CACHE_VERSION = "v21";
+const CACHE_VERSION = "v22";
 const CACHE_NAME = "homework-app-" + CACHE_VERSION;
 
 /** 설치할 때 미리 받아둘 파일들. 상대 경로라 GitHub Pages 하위 경로에서도 동작한다. */
@@ -37,9 +37,12 @@ const PRECACHE = [
   "./manifest-daughter1.json",
   "./manifest-daughter2.json",
   "./manifest-mom.json",
-  "./icons/daughter-180.png",
-  "./icons/daughter-192.png",
-  "./icons/daughter-512.png",
+  "./icons/daughter1-180.png",
+  "./icons/daughter1-192.png",
+  "./icons/daughter1-512.png",
+  "./icons/daughter2-180.png",
+  "./icons/daughter2-192.png",
+  "./icons/daughter2-512.png",
   "./icons/mom-180.png",
   "./icons/mom-192.png",
   "./icons/mom-512.png",

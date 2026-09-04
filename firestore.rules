@@ -29,7 +29,7 @@ service cloud.firestore {
           return d.keys().hasOnly(
                    ['title', 'category', 'completed', 'date',
                     'memo', 'addedBy', 'source', 'subject', 'items',
-                    'createdAt'])
+                    'createdAt', 'updatedAt'])
               && d.keys().hasAll(['title', 'category', 'completed'])
               && d.title is string
               // 학원 알림장을 통째로 담는 경우가 있어 넉넉히 둔다
@@ -46,13 +46,30 @@ service cloud.firestore {
                   || d.subject in ['수학', '영어', '과학', '국어', '사회', '기타'])
               // 세부 항목: [{text, done}] 배열. 개수만 제한하고 내부는 앱이 정리한다.
               && (!('items' in d) || (d.items is list && d.items.size() <= 50))
-              && (!('createdAt' in d) || d.createdAt is timestamp);
+              && (!('createdAt' in d) || d.createdAt is timestamp)
+              && (!('updatedAt' in d) || d.updatedAt is timestamp);
         }
 
         allow read:   if isKnownStudent();
         allow create: if isKnownStudent() && isValidTodo(request.resource.data);
         allow update: if isKnownStudent() && isValidTodo(request.resource.data);
         allow delete: if isKnownStudent();
+      }
+
+      // students/{studentId}/meta/{docId}
+      // 지금은 cheer(엄마의 응원 한마디) 하나뿐이다.
+      // 할일이 아니라 화면에 잠깐 띄우는 메시지라 todos와 분리해 둔다.
+      match /meta/{docId} {
+
+        function isValidMeta(d) {
+          return docId == 'cheer'
+              && d.keys().hasOnly(['text', 'at'])
+              && d.text is string && d.text.size() > 0 && d.text.size() <= 100
+              && d.at is timestamp;
+        }
+
+        allow read:  if isKnownStudent();
+        allow write: if isKnownStudent() && isValidMeta(request.resource.data);
       }
     }
 

@@ -9,6 +9,7 @@ import {
   deleteTodo,
   deleteCompletedTodos,
   listenTodos,
+  listenCheer,
   CATEGORIES,
   SUBJECTS,
 } from "./db.js";
@@ -23,6 +24,7 @@ import {
   formatDue,
   countTodo,
   allItemsDone,
+  sameDay,
 } from "./todo-logic.js";
 import { parseManualInput } from "./sources/manual-input.js";
 import { INPUT_SOURCES, getSource } from "./sources/index.js";
@@ -740,6 +742,32 @@ export function initApp(studentId) {
 
   // --- 실시간 구독 ---------------------------------------------------------
 
+  // 엄마가 보낸 응원 한마디. 오늘 것만 헤더 아래에 띄운다.
+  // (어제 메시지가 계속 붙어 있으면 금세 배경처럼 무시하게 된다)
+  function renderCheer(cheer) {
+    const header = document.querySelector(".app-header");
+    if (!header) return;
+    const old = document.querySelector(".cheer");
+
+    const isToday =
+      cheer && cheer.at instanceof Date && sameDay(cheer.at, new Date());
+    if (!cheer || !cheer.text || !isToday) {
+      if (old) old.remove();
+      return;
+    }
+
+    const box = old || makeEl("div", "cheer");
+    box.textContent = "";
+    box.append(makeEl("span", "cheer-from", "엄마"), makeEl("span", "cheer-text", cheer.text));
+    if (!old) header.insertAdjacentElement("afterend", box);
+  }
+
+  const unsubscribeCheer = listenCheer(
+    studentId,
+    renderCheer,
+    (err) => console.warn("[app] 응원 구독 실패:", err.code || err.message)
+  );
+
   const unsubscribe = listenTodos(
     studentId,
     (todos) => {
@@ -755,5 +783,13 @@ export function initApp(studentId) {
 
   render();
 
-  return { studentId, state, render, unsubscribe };
+  return {
+    studentId,
+    state,
+    render,
+    unsubscribe() {
+      unsubscribe();
+      unsubscribeCheer();
+    },
+  };
 }

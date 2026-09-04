@@ -16,6 +16,7 @@ import {
   where,
   orderBy,
   serverTimestamp,
+  setDoc,
   writeBatch,
 } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js";
 
@@ -113,6 +114,7 @@ export async function addTodo(studentId, todoData) {
   const payload = {
     ...normalizeTodo(todoData),
     createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
   };
   const ref = await addDoc(todosCol(studentId), payload);
   return ref.id;
@@ -148,6 +150,10 @@ export async function updateTodo(studentId, todoId, changes) {
     throw new Error("subject는 " + SUBJECTS.join(" / ") + " 중 하나여야 합니다.");
   }
   if ("items" in patch) patch.items = normalizeItems(patch.items);
+
+  // 엄마 화면에서 "마지막으로 움직인 시각"을 보여주기 위한 것.
+  // 정렬은 계속 createdAt으로 하므로 목록 순서에는 영향이 없다.
+  patch.updatedAt = serverTimestamp();
 
   await updateDoc(doc(db, "students", studentId, "todos", todoId), patch);
 }
@@ -205,6 +211,62 @@ export function listenTodos(studentId, onChange, onError) {
     },
     (err) => {
       console.error("[db] listenTodos 오류:", err);
+      if (typeof onError === "function") onError(err);
+    }
+  );
+}
+
+// --- 응원 한마디 -------------------------------------------------------------
+// 경로: students/{studentId}/meta/cheer  ({ text, at })
+// 할일이 아니라 오늘 하루만 띄우는 메시지라 todos와 분리해 둔다.
+// 매번 덮어쓰기 때문에 이력은 남지 않는다 (남길 이유가 없다).
+
+/** 응원 한마디 최대 길이 (보안 규칙과 맞춰둘 것) */
+export const MAX_CHEER_LENGTH = 100;
+
+/**
+ * 응원 한마디를 보낸다(덮어쓴다).
+ * @param {string} studentId
+ * @param {string} text
+ */
+export async function setCheer(studentId, text) {
+  assertStudentId(studentId);
+  const trimmed = String(text || "").trim();
+  if (!trimmed) throw new Error("응원 문구가 비어 있습니다");
+  if (trimmed.length > MAX_CHEER_LENGTH) {
+    throw new Error("응원 문구는 " + MAX_CHEER_LENGTH + "자까지입니다");
+  }
+  await setDoc(doc(db, "students", studentId, "meta", "cheer"), {
+    text: trimmed,
+    at: serverTimestamp(),
+  });
+}
+
+/**
+ * 응원 한마디를 구독한다. 없으면 null을 넘긴다.
+ * @param {string} studentId
+ * @param {(cheer: {text: string, at: Date|null}|null) => void} onChange
+ * @param {(err: Error) => void} [onError]
+ * @returns {() => void} 구독 해제 함수
+ */
+export function listenCheer(studentId, onChange, onError) {
+  assertStudentId(studentId);
+  return onSnapshot(
+    doc(db, "students", studentId, "meta", "cheer"),
+    (snap) => {
+      if (!snap.exists()) {
+        onChange(null);
+        return;
+      }
+      // todos와 같은 이유로 estimate — 오프라인에서 방금 쓴 것도 시각이 채워진다
+      const d = snap.data({ serverTimestamps: "estimate" });
+      onChange({
+        text: typeof d.text === "string" ? d.text : "",
+        at: d.at && typeof d.at.toDate === "function" ? d.at.toDate() : null,
+      });
+    },
+    (err) => {
+      console.error("[db] listenCheer 오류:", err);
       if (typeof onError === "function") onError(err);
     }
   );
