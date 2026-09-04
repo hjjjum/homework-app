@@ -1250,13 +1250,20 @@ textarea.field {
   background-size: 13px 13px;
 }
 
+/* 글자를 누르면 수정 폼이 열리는 버튼이지만, 버튼처럼 보이면 목록이 시끄러워진다 */
 .subitem-text {
   flex: 1;
+  min-width: 0;
   padding: 7px 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
   font-size: 15px;
   line-height: 1.45;
   color: var(--ink-soft);
+  text-align: left;
   word-break: break-word;
+  cursor: pointer;
 }
 
 .subitem.is-done .subitem-text {
@@ -1597,6 +1604,36 @@ textarea.field {
 
 .watch-row.is-editing {
   padding: 12px;
+}
+
+.watch-head {
+  display: flex;
+  align-items: stretch;
+}
+
+/* 고치기 단추. 목록을 시끄럽게 하지 않도록 연한 색으로 둔다. */
+.watch-edit-btn {
+  flex: none;
+  width: var(--tap);
+  border: 0;
+  border-left: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink-faint);
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.watch-edit-btn:active {
+  background: var(--bg);
+}
+
+.watch-row.is-done {
+  background: #fbf8f3;
+}
+
+.watch-row.is-done .watch-title-text {
+  color: var(--ink-faint);
+  text-decoration: line-through;
 }
 
 .watch-list .watch-title {

@@ -555,7 +555,10 @@ export function initMom() {
 
   /** 남은 항목 한 줄. 누르면 펼쳐진다. */
   function renderWatchRow(studentId, todo) {
-    const li = makeEl("li", "watch-row" + (todo.urgent ? " is-urgent" : ""));
+    const li = makeEl(
+      "li",
+      "watch-row" + (todo.urgent ? " is-urgent" : "") + (todo.completed ? " is-done" : "")
+    );
     const open = state.expandedIds.has(todo.id);
 
     if (state.editing && state.editing.id === todo.id) {
@@ -583,7 +586,20 @@ export function initMom() {
       btn.appendChild(makeEl("span", "watch-count", counts.완료 + "/" + counts.총));
     }
     btn.appendChild(makeEl("span", "watch-caret", open ? "▾" : "▸"));
-    li.appendChild(btn);
+
+    // 고치기는 펼치지 않아도 한 번에 닿게 행에 붙여 둔다.
+    // (과목·세부 항목까지 여기서 고친다)
+    const edit = makeEl("button", "watch-edit-btn", "✎");
+    edit.type = "button";
+    edit.dataset.action = "watch-edit";
+    edit.dataset.student = studentId;
+    edit.dataset.id = todo.id;
+    edit.title = "내용 고치기";
+    edit.setAttribute("aria-label", todo.title + " 내용 고치기");
+
+    const head = makeEl("div", "watch-head");
+    head.append(btn, edit);
+    li.appendChild(head);
 
     if (open) li.appendChild(renderTodoDetail(studentId, todo));
     return li;
@@ -676,29 +692,37 @@ export function initMom() {
     bar.appendChild(fill);
     card.appendChild(bar);
 
-    // 남은 항목 — 급한 일이 먼저 온다
-    const active = sortByUrgency(splitByCompleted(todos).active);
+    // 남은 항목이 먼저(급한 일이 맨 위), 그 뒤에 완료한 항목.
+    // 완료한 것도 목록에 둔다 — 빠지면 엄마가 그 숙제 내용을 고칠 방법이 없다.
+    const split = splitByCompleted(todos);
+    const active = sortByUrgency(split.active);
+    const done = split.completed;
     if (kid.error) {
       card.appendChild(makeEl("p", "kid-sub", kid.error));
     } else if (!kid.loaded) {
       card.appendChild(makeEl("p", "kid-sub", "불러오는 중…"));
+    } else if (active.length === 0 && done.length === 0) {
+      card.appendChild(makeEl("p", "kid-sub", "아직 할 일이 없습니다."));
     } else if (active.length === 0) {
-      card.appendChild(
-        makeEl("p", "kid-sub", todos.length ? "남은 할 일이 없어요 🎉" : "아직 할 일이 없습니다.")
-      );
+      card.appendChild(makeEl("p", "kid-sub", "남은 할 일이 없어요 🎉"));
+      const ul = makeEl("ul", "watch-list");
+      for (const todo of done) ul.appendChild(renderWatchRow(studentId, todo));
+      card.appendChild(ul);
     } else {
       const showAll = state.showAll[studentId];
-      const shown = showAll ? active : active.slice(0, PREVIEW_COUNT);
+      const shown = showAll ? active.concat(done) : active.slice(0, PREVIEW_COUNT);
       const ul = makeEl("ul", "watch-list");
       for (const todo of shown) ul.appendChild(renderWatchRow(studentId, todo));
       card.appendChild(ul);
 
-      if (active.length > PREVIEW_COUNT) {
-        const more = makeEl(
-          "button",
-          "btn btn--ghost btn--small",
-          showAll ? "접기" : "외 " + (active.length - PREVIEW_COUNT) + "개 더 보기"
-        );
+      const hidden = active.length - Math.min(active.length, PREVIEW_COUNT) + done.length;
+      if (hidden > 0 || showAll) {
+        const label = showAll
+          ? "접기"
+          : done.length > 0 && active.length <= PREVIEW_COUNT
+          ? "완료한 " + done.length + "개 보기"
+          : "외 " + hidden + "개 더 보기";
+        const more = makeEl("button", "btn btn--ghost btn--small", label);
         more.type = "button";
         more.dataset.action = "watch-more";
         more.dataset.student = studentId;

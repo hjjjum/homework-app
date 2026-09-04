@@ -350,7 +350,14 @@ export function initApp(studentId) {
         box.setAttribute("aria-label", item.text);
         label.append(box, makeEl("span", "check-box"));
 
-        sub.append(label, makeEl("span", "subitem-text", item.text));
+        // 글자를 누르면 수정 폼이 열린다. 체크는 왼쪽 동그라미로만 한다 —
+        // 글자를 누르려다 실수로 완료 처리되는 일이 없도록 나눠 두었다.
+        const text = makeEl("button", "subitem-text", item.text);
+        text.type = "button";
+        text.dataset.action = "edit";
+        text.dataset.id = todo.id;
+        text.setAttribute("aria-label", item.text + " 고치기");
+        sub.append(label, text);
         ul.appendChild(sub);
       });
       li.appendChild(ul);
