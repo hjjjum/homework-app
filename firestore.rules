@@ -59,15 +59,29 @@ service cloud.firestore {
       }
 
       // students/{studentId}/meta/{docId}
-      // 지금은 cheer(엄마의 응원 한마디) 하나뿐이다.
-      // 할일이 아니라 화면에 잠깐 띄우는 메시지라 todos와 분리해 둔다.
+      // cheer  = 엄마의 응원 한마디 (오늘 하루만 띄운다)
+      // profile = 화면 제목에 쓰는 이름과 아이콘
+      // 둘 다 할일이 아니라서 todos와 분리해 둔다.
       match /meta/{docId} {
 
-        function isValidMeta(d) {
-          return docId == 'cheer'
-              && d.keys().hasOnly(['text', 'at'])
+        function isValidCheer(d) {
+          return d.keys().hasOnly(['text', 'at'])
               && d.text is string && d.text.size() > 0 && d.text.size() <= 100
               && d.at is timestamp;
+        }
+
+        function isValidProfile(d) {
+          return d.keys().hasOnly(['name', 'icon', 'at'])
+              && d.name is string && d.name.size() > 0 && d.name.size() <= 20
+              // icon은 stickers.js의 id. 스티커가 늘어도 규칙을 다시 배포하지
+              // 않도록 값 목록 대신 타입과 길이만 본다.
+              && d.icon is string && d.icon.size() > 0 && d.icon.size() <= 30
+              && d.at is timestamp;
+        }
+
+        function isValidMeta(d) {
+          return (docId == 'cheer' && isValidCheer(d))
+              || (docId == 'profile' && isValidProfile(d));
         }
 
         allow read:  if isKnownStudent();

@@ -12,6 +12,8 @@ import {
   updateTodo,
   listenTodos,
   setCheer,
+  listenProfile,
+  DEFAULT_PROFILE,
   CATEGORIES,
   STUDENT_IDS,
   SUBJECTS,
@@ -27,15 +29,27 @@ import {
   countTodo,
   sortByUrgency,
 } from "./todo-logic.js";
-import { createDuePicker, createUrgentToggle } from "./due-picker.js";
+import { createDuePicker, createUrgentToggle, urgentIcon } from "./due-picker.js";
 import { createTodoEditor, makeEditDraft } from "./todo-editor.js";
+import { createSticker } from "./stickers.js";
 import { INPUT_SOURCES, getSource } from "./sources/index.js";
 import { recognizeImage, imageFromPaste, parseDueDate } from "./ocr.js";
 
-/** 화면에 보여줄 딸 이름. db의 studentId와 짝을 이룬다. */
+/**
+ * 화면에 보여줄 딸 이름. db의 studentId와 짝을 이룬다.
+ * 딸 화면에서 이름을 바꾸면(students/{id}/meta/profile) 여기 값도 따라 바뀐다 —
+ * 엄마 화면과 딸 화면에 서로 다른 이름이 보이면 헷갈리기 때문이다.
+ * 객체를 갈아끼우지 말고 속성만 고칠 것 (이미 import한 쪽이 같은 객체를 본다).
+ */
 export const STUDENT_LABEL = {
-  daughter1: "첫째",
-  daughter2: "둘째",
+  daughter1: DEFAULT_PROFILE.daughter1.name,
+  daughter2: DEFAULT_PROFILE.daughter2.name,
+};
+
+/** 이름 옆에 붙는 아이콘 (stickers.js의 id) */
+export const STUDENT_ICON = {
+  daughter1: DEFAULT_PROFILE.daughter1.icon,
+  daughter2: DEFAULT_PROFILE.daughter2.icon,
 };
 
 // ===========================================================================
@@ -563,7 +577,7 @@ export function initMom() {
     btn.dataset.action = "watch-expand";
     btn.dataset.id = todo.id;
     btn.setAttribute("aria-expanded", String(open));
-    if (todo.urgent) btn.appendChild(makeEl("span", "urgent-mark", "!"));
+    if (todo.urgent) btn.appendChild(urgentIcon());
     btn.appendChild(makeEl("span", "watch-title-text", todo.title));
     if (counts.총 > 1) {
       btn.appendChild(makeEl("span", "watch-count", counts.완료 + "/" + counts.총));
@@ -637,6 +651,10 @@ export function initMom() {
     card.dataset.student = studentId;
 
     const head = makeEl("div", "kid-card");
+    const icon = makeEl("span", "kid-icon");
+    icon.appendChild(createSticker(STUDENT_ICON[studentId], 30));
+    head.appendChild(icon);
+
     const text = makeEl("div", "kid-text");
     text.appendChild(makeEl("span", "kid-name", STUDENT_LABEL[studentId]));
 
@@ -946,10 +964,29 @@ export function initMom() {
 
   // --- 시작 ---------------------------------------------------------------
 
+  // 이름·아이콘은 딸 화면에서 바꾼다. 입력 탭의 받는 사람 단추에도 쓰이므로
+  // 현황 탭을 열지 않아도 구독한다.
+  const stopProfiles = STUDENT_IDS.map((id) =>
+    listenProfile(id, (profile) => {
+      STUDENT_LABEL[id] = profile.name;
+      STUDENT_ICON[id] = profile.icon;
+      renderDrafts();
+      renderWatch();
+    })
+  );
+
   renderTabs();
   renderSourcePicker();
   renderDrafts();
   renderWatch();
 
-  return { state, subscribeWatch, switchTab };
+  return {
+    state,
+    subscribeWatch,
+    switchTab,
+    unsubscribe() {
+      stopProfiles.forEach((stop) => stop());
+      if (state.unsubscribe) state.unsubscribe();
+    },
+  };
 }

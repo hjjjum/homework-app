@@ -274,3 +274,56 @@ export function listenCheer(studentId, onChange, onError) {
     }
   );
 }
+
+// --- 이름과 아이콘 -----------------------------------------------------------
+// 경로: students/{studentId}/meta/profile  ({ name, icon, at })
+// 화면 제목("채원이 할 일")과 엄마 현황의 카드 이름이 이것을 함께 쓴다.
+// 기기마다 다르면 헷갈리므로 localStorage가 아니라 Firestore에 둔다.
+
+export const MAX_NAME_LENGTH = 20;
+
+/** 아직 정하지 않았을 때 쓰는 이름과 아이콘 (icon은 stickers.js의 id) */
+export const DEFAULT_PROFILE = {
+  daughter1: { name: "채원이", icon: "star" },
+  daughter2: { name: "채이", icon: "cherry" },
+};
+
+/** 저장된 값이 없거나 망가졌을 때도 항상 온전한 모양을 돌려준다. */
+export function normalizeProfile(studentId, data) {
+  const base = DEFAULT_PROFILE[studentId] || { name: studentId, icon: "star" };
+  const name = data && typeof data.name === "string" ? data.name.trim() : "";
+  const icon = data && typeof data.icon === "string" ? data.icon.trim() : "";
+  return {
+    name: name ? name.slice(0, MAX_NAME_LENGTH) : base.name,
+    icon: icon || base.icon,
+  };
+}
+
+/** 이름·아이콘 저장 (덮어쓰기) */
+export async function setProfile(studentId, profile) {
+  assertStudentId(studentId);
+  const { name, icon } = normalizeProfile(studentId, profile);
+  await setDoc(doc(db, "students", studentId, "meta", "profile"), {
+    name,
+    icon,
+    at: serverTimestamp(),
+  });
+}
+
+/**
+ * 이름·아이콘 구독. 값이 없어도 기본값으로 한 번은 불러준다.
+ * @returns {() => void} 구독 해제 함수
+ */
+export function listenProfile(studentId, onChange, onError) {
+  assertStudentId(studentId);
+  return onSnapshot(
+    doc(db, "students", studentId, "meta", "profile"),
+    (snap) => onChange(normalizeProfile(studentId, snap.exists() ? snap.data() : null)),
+    (err) => {
+      console.error("[db] listenProfile 오류:", err);
+      // 못 읽어도 화면이 비지 않게 기본값을 넘긴다
+      onChange(normalizeProfile(studentId, null));
+      if (typeof onError === "function") onError(err);
+    }
+  );
+}

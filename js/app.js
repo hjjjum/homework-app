@@ -10,6 +10,9 @@ import {
   deleteCompletedTodos,
   listenTodos,
   listenCheer,
+  listenProfile,
+  setProfile,
+  MAX_NAME_LENGTH,
   CATEGORIES,
   SUBJECTS,
 } from "./db.js";
@@ -28,13 +31,13 @@ import {
   dueLabel,
   sortByUrgency,
 } from "./todo-logic.js";
-import { createDuePicker, createUrgentToggle } from "./due-picker.js";
+import { createDuePicker, createUrgentToggle, urgentIcon } from "./due-picker.js";
 import { createTodoEditor, makeEditDraft } from "./todo-editor.js";
 import { parseManualInput } from "./sources/manual-input.js";
 import { INPUT_SOURCES, getSource } from "./sources/index.js";
 import { recognizeImage, imageFromPaste, parseDueDate } from "./ocr.js";
 import { initRewards } from "./rewards.js";
-import { createSticker } from "./stickers.js";
+import { createSticker, STICKERS, GROUPS } from "./stickers.js";
 
 // 순수 로직은 todo-logic.js, 입력 파싱은 sources/ 아래로 분리되어 있다.
 // 콘솔이나 다른 화면에서 쓰기 편하도록 여기서 다시 내보낸다.
@@ -65,6 +68,7 @@ export function initApp(studentId) {
   const $ = (id) => document.getElementById(id);
 
   const els = {
+    appTitle: $("app-title"),
     progressCount: $("progress-count"),
     progressPercent: $("progress-percent"),
     progressFill: $("progress-fill"),
@@ -100,6 +104,7 @@ export function initApp(studentId) {
     editorEl: null,     // 만들어 둔 폼 DOM. 다시 그릴 때 그대로 재사용한다
     quickDate: "",      // 빠른 추가의 마감일 ("" = 다음 수업까지)
     quickUrgent: false, // 빠른 추가의 급한 일 표시
+    profile: null,      // { name, icon } — 화면 제목에 쓴다
     confirmingId: null, // 삭제 확인 대기 중인 항목
     confirmingAll: false,
   };
@@ -313,7 +318,7 @@ export function initApp(studentId) {
     urgent.setAttribute("aria-pressed", String(todo.urgent === true));
     urgent.setAttribute("aria-label", todo.title + " 급한 일로 표시");
     urgent.title = "급한 일로 표시";
-    urgent.appendChild(makeEl("span", "urgent-mark", "!"));
+    urgent.appendChild(urgentIcon());
 
     const del = makeEl("button", "icon-btn");
     del.type = "button";
@@ -774,6 +779,119 @@ export function initApp(studentId) {
   renderQuickDue();
   renderSourcePicker();
 
+  // --- 화면 제목 (이름 + 아이콘) -------------------------------------------
+  //
+  // 이름과 아이콘은 students/{studentId}/meta/profile 에 있다. 기기마다 다르면
+  // 헷갈리므로 이 기기에만 저장하지 않는다. 엄마 화면도 같은 값을 읽어 쓴다.
+
+  function renderTitle() {
+    if (!els.appTitle || !state.profile) return;
+    const { name, icon } = state.profile;
+    const text = name + " 할 일";
+
+    els.appTitle.textContent = "";
+    const btn = makeEl("button", "title-btn");
+    btn.type = "button";
+    btn.setAttribute("aria-label", text + " — 이름과 아이콘 바꾸기");
+    const iconBox = makeEl("span", "title-icon");
+    iconBox.appendChild(createSticker(icon, 34));
+    btn.append(iconBox, makeEl("span", "title-text", text), makeEl("span", "title-edit", "✎"));
+    btn.addEventListener("click", openTitleSheet);
+    els.appTitle.appendChild(btn);
+
+    // 브라우저 탭과 홈 화면에서 고른 이름이 보이도록
+    document.title = text;
+  }
+
+  /** 이름 고치기 + 아이콘 고르기 */
+  function openTitleSheet() {
+    const picked = { name: state.profile.name, icon: state.profile.icon };
+
+    const sheet = makeEl("div", "sheet");
+    const inner = makeEl("div", "sheet-inner");
+    inner.appendChild(makeEl("h2", null, "이름과 아이콘"));
+
+    const preview = makeEl("p", "title-preview");
+    const nameInput = document.createElement("input");
+    nameInput.type = "text";
+    nameInput.className = "field";
+    nameInput.maxLength = MAX_NAME_LENGTH;
+    nameInput.value = picked.name;
+    nameInput.setAttribute("aria-label", "이름");
+
+    function syncPreview() {
+      preview.textContent = (picked.name.trim() || "…") + " 할 일";
+    }
+    nameInput.addEventListener("input", () => {
+      picked.name = nameInput.value;
+      syncPreview();
+    });
+    syncPreview();
+    inner.append(nameInput, preview);
+
+    // 아이콘은 스티커 판과 같은 그림을 쓴다 (앱 전체가 같은 그림체로 보이게)
+    const buttons = [];
+    for (const group of GROUPS) {
+      inner.appendChild(makeEl("h3", "sheet-group", group));
+      const grid = makeEl("div", "pick-grid");
+      for (const sticker of STICKERS.filter((x) => x.group === group)) {
+        const btn = makeEl("button", "pick" + (picked.icon === sticker.id ? " is-on" : ""));
+        btn.type = "button";
+        btn.dataset.icon = sticker.id;
+        btn.setAttribute("aria-pressed", String(picked.icon === sticker.id));
+        btn.appendChild(createSticker(sticker.id, 46));
+        btn.appendChild(makeEl("span", "pick-name", sticker.name));
+        btn.addEventListener("click", () => {
+          picked.icon = sticker.id;
+          for (const other of buttons) {
+            const on = other.dataset.icon === picked.icon;
+            other.classList.toggle("is-on", on);
+            other.setAttribute("aria-pressed", String(on));
+          }
+        });
+        buttons.push(btn);
+        grid.appendChild(btn);
+      }
+      inner.appendChild(grid);
+    }
+
+    const save = makeEl("button", "btn btn--primary btn--block", "저장");
+    save.type = "button";
+    save.addEventListener("click", async () => {
+      if (!picked.name.trim()) {
+        nameInput.focus();
+        return;
+      }
+      save.disabled = true;
+      save.textContent = "저장 중...";
+      try {
+        await setProfile(studentId, picked);
+        sheet.remove();
+        setStatus("이름을 바꿨어요.");
+      } catch (err) {
+        save.disabled = false;
+        save.textContent = "저장";
+        reportError("이름 바꾸기", err);
+      }
+    });
+    inner.appendChild(save);
+
+    const close = makeEl("button", "btn btn--ghost btn--block", "취소");
+    close.type = "button";
+    close.addEventListener("click", () => sheet.remove());
+    inner.appendChild(close);
+
+    sheet.appendChild(inner);
+    sheet.addEventListener("click", (e) => { if (e.target === sheet) sheet.remove(); });
+    document.body.appendChild(sheet);
+    nameInput.focus();
+  }
+
+  const unsubscribeProfile = listenProfile(studentId, (profile) => {
+    state.profile = profile;
+    renderTitle();
+  });
+
   // --- 실시간 구독 ---------------------------------------------------------
 
   // 엄마가 보낸 응원 한마디. 오늘 것만 헤더 아래에 띄운다.
@@ -824,6 +942,7 @@ export function initApp(studentId) {
     unsubscribe() {
       unsubscribe();
       unsubscribeCheer();
+      unsubscribeProfile();
     },
   };
 }

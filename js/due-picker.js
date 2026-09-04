@@ -78,6 +78,27 @@ export function createDuePicker(value, onChange) {
 }
 
 /**
+ * 급한 일 표시. 느낌표는 너무 딱딱해서, 둥근 번개(빨리 하자)로 그린다.
+ * 색은 CSS가 정한다 (currentColor).
+ */
+export function urgentIcon() {
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("class", "urgent-mark");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("aria-hidden", "true");
+  const path = document.createElementNS(ns, "path");
+  // 모서리를 둥글게 굴린 번개. 뾰족한 끝이 없어 부드럽게 보인다.
+  path.setAttribute(
+    "d",
+    "M13.6 2.6a1 1 0 0 1 1.8.9l-1.7 5.3a.6.6 0 0 0 .6.8h3.1a1.2 1.2 0 0 1 .95 1.95l-7.9 10a1 1 0 0 1-1.77-.83l1.62-5.15a.6.6 0 0 0-.57-.78H6.6a1.2 1.2 0 0 1-.94-1.95Z"
+  );
+  path.setAttribute("fill", "currentColor");
+  svg.appendChild(path);
+  return svg;
+}
+
+/**
  * 급한 일 토글 단추.
  * @param {boolean} on
  * @param {(next: boolean) => void} [onChange]
@@ -85,7 +106,7 @@ export function createDuePicker(value, onChange) {
 export function createUrgentToggle(on, onChange) {
   const btn = el("button", "urgent-btn");
   btn.type = "button";
-  btn.append(el("span", "urgent-mark", "!"), el("span", null, "급해요"));
+  btn.append(urgentIcon(), el("span", null, "급해요"));
   btn.title = "급한 일로 표시";
 
   function sync(next) {

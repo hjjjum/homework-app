@@ -67,6 +67,8 @@ mom.html        →  js/mom.js  ┤→  js/db.js  →  js/firebase-config.js  �
   그 모듈들에 넣는 편이 검증하기 쉽다.
   `alert()` / `confirm()` / `prompt()`는 쓰지 않는다 — 브라우저 모달이 자동화 세션을 멈추게 하므로,
   삭제 확인은 "한 번 더 누르기", 항목 수정은 인라인 폼으로 처리한다.
+- **js/stickers.js** — 손으로 좌표를 적어 만든 스티커 24종(CSS 도형, 이미지 파일 없음).
+  스티커 판·완료 도장·화면 제목 아이콘이 모두 이 목록을 쓴다.
 - **js/due-picker.js** — 마감일 칩 한 줄(`createDuePicker`)과 급한 일 토글(`createUrgentToggle`).
   엄마 화면·딸 화면·편집 폼이 모두 이것을 쓴다.
 - **js/todo-editor.js** — 이미 저장된 할일 하나를 고치는 인라인 폼(`createTodoEditor`).
@@ -139,7 +141,14 @@ mom.html        →  js/mom.js  ┤→  js/db.js  →  js/firebase-config.js  �
 컬렉션 경로: `students/{studentId}/todos/{todoId}`
 
 - `studentId`는 `"daughter1"` / `"daughter2"` 두 개뿐이다.
-- `students/{studentId}` 문서 자체에는 아무것도 쓰지 않는다 (규칙에서도 `allow write: if false`).
+- `students/{studentId}/meta/` 에는 할일이 아닌 두 가지가 있다:
+`cheer`(엄마의 응원 한마디, 오늘 하루만 뜬다)와 `profile`(`{name, icon}` — 화면 제목과
+엄마 현황의 카드 이름). **이름은 기기가 아니라 Firestore에 둔다** — 딸 화면과 엄마 화면에
+서로 다른 이름이 보이면 헷갈리기 때문이다. 기본값은 db.js의 `DEFAULT_PROFILE`
+(첫째=채원이/별, 둘째=채이/체리)이고, 딸 화면 제목을 눌러 바꾼다.
+`icon`은 stickers.js의 id라서, 스티커가 늘어도 규칙을 다시 배포할 필요가 없다.
+
+`students/{studentId}` 문서 자체에는 아무것도 쓰지 않는다 (규칙에서도 `allow write: if false`).
   콘솔에서 이 문서가 기울임체로 보이는 건 정상이다.
 - todo 필드: `title`(string), `category`(`"숙제"|"개인스케줄"|"공부"`), `completed`(bool),
   `date`(string, 선택), `memo`(string, 선택), `addedBy`(`"mom"|"self"`),

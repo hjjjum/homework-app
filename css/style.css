@@ -31,6 +31,10 @@
   --progress-soft: #dfedec;
   --danger: #b04a66;      /* candy를 진하게 */
   --danger-soft: #fbe7eb;
+  /* 급한 일. 삭제(danger)와 같은 빨강을 쓰면 무섭고, 지우는 것과 헷갈린다.
+     따뜻한 주황으로 분리했다. */
+  --urgent: #cf7a3a;
+  --urgent-soft: #fdeedc;
 
   --cat-homework: #3a6566;      /* viridian 진하게 */
   --cat-homework-bg: #dfedec;
@@ -1479,27 +1483,22 @@ textarea.field {
   cursor: pointer;
 }
 
+/* 둥근 번개. 느낌표보다 부드럽고, 색은 currentColor를 따라간다. */
 .urgent-mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: var(--line-strong);
-  color: var(--surface);
-  font-size: 12px;
-  font-weight: 800;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  color: var(--line-strong);
 }
 
 .urgent-btn[data-on="true"] {
-  background: var(--danger-soft);
-  border-color: var(--danger);
-  color: var(--danger);
+  background: var(--urgent-soft);
+  border-color: var(--urgent);
+  color: var(--urgent);
 }
 
 .urgent-btn[data-on="true"] .urgent-mark {
-  background: var(--danger);
+  color: var(--urgent);
 }
 
 /* 목록 안에서는 글자 없이 동그라미만 (자리를 많이 뺏지 않게) */
@@ -1519,13 +1518,13 @@ textarea.field {
 }
 
 .todo--urgent {
-  border-color: var(--danger);
-  box-shadow: inset 3px 0 0 var(--danger);
+  border-color: var(--urgent);
+  box-shadow: inset 3px 0 0 var(--urgent);
 }
 
 .badge--urgent {
-  background: var(--danger-soft);
-  color: var(--danger);
+  background: var(--urgent-soft);
+  color: var(--urgent);
 }
 
 /* --- 편집 폼 안의 세부 항목 -------------------------------------------------- */
@@ -1588,8 +1587,12 @@ textarea.field {
 }
 
 .watch-row.is-urgent {
-  border-color: var(--danger);
-  box-shadow: inset 3px 0 0 var(--danger);
+  border-color: var(--urgent);
+  box-shadow: inset 3px 0 0 var(--urgent);
+}
+
+.watch-list .watch-title .urgent-mark {
+  color: var(--urgent);
 }
 
 .watch-row.is-editing {
@@ -1704,4 +1707,53 @@ textarea.field {
   flex: 1;
   min-width: 0;
   margin-bottom: 0;
+}
+
+/* --- 화면 제목 (이름 + 아이콘) ---------------------------------------------- */
+
+.app-header h1 {
+  display: flex;
+}
+
+.title-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--tap);
+  margin: -6px -10px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.title-btn:active {
+  background: rgb(45 71 41 / 0.05);
+}
+
+.title-icon {
+  display: inline-flex;
+  flex: none;
+}
+
+.title-edit {
+  font-size: 14px;
+  color: var(--ink-faint);
+  font-weight: 500;
+}
+
+.title-preview {
+  margin: -4px 0 4px;
+  font-size: 13px;
+  color: var(--ink-faint);
+}
+
+.kid-icon {
+  display: inline-flex;
+  flex: none;
+  margin-right: 8px;
 }
