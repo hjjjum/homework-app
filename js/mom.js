@@ -7,16 +7,28 @@
 // "현황 보기"는 의도적으로 읽기 전용이다. 체크/수정/삭제는 각자 딸 화면에서만
 // 할 수 있게 두어, 엄마가 대신 체크해 버리는 상황을 막는다.
 // ---------------------------------------------------------------------------
-import { addTodo, listenTodos, setCheer, CATEGORIES, STUDENT_IDS, SUBJECTS } from "./db.js";
+import {
+  addTodo,
+  updateTodo,
+  listenTodos,
+  setCheer,
+  CATEGORIES,
+  STUDENT_IDS,
+  SUBJECTS,
+  MAX_CHEER_LENGTH,
+} from "./db.js";
 import {
   ALL,
   CATEGORY_KEY,
   SUBJECT_KEY,
   calcProgress,
   splitByCompleted,
-  formatDue,
+  dueLabel,
   countTodo,
+  sortByUrgency,
 } from "./todo-logic.js";
+import { createDuePicker, createUrgentToggle } from "./due-picker.js";
+import { createTodoEditor, makeEditDraft } from "./todo-editor.js";
 import { INPUT_SOURCES, getSource } from "./sources/index.js";
 import { recognizeImage, imageFromPaste, parseDueDate } from "./ocr.js";
 
@@ -88,10 +100,16 @@ export function initMom() {
     nextKey: 1,
     // 아이별 현황. 두 아이를 동시에 구독한다.
     kids: Object.fromEntries(
-      STUDENT_IDS.map((id) => [id, { todos: [], loaded: false, error: "", cheerNote: "" }])
+      STUDENT_IDS.map((id) => [id, { todos: [], loaded: false, error: "", cheerNote: "", cheerEl: null }])
     ),
     unsubscribe: null,
     sending: false,
+    // 현황 탭: 펼친 항목 · 전부 보기 · 고치는 중인 항목
+    expandedIds: new Set(),
+    showAll: Object.fromEntries(STUDENT_IDS.map((id) => [id, false])),
+    editing: null,
+    editDraft: null,
+    editorEl: null,
   };
 
   // --- 작은 도우미 ---------------------------------------------------------
@@ -147,7 +165,9 @@ export function initMom() {
       subjectConfident: data.subjectConfident !== false,
       items: Array.isArray(data.items) ? data.items.slice() : [],
       memo: data.memo || "",
+      // 빈 값 = "다음 수업까지". 학원 숙제는 대부분 그래서 기본값으로 뒀다.
       date: "",
+      urgent: false,
       // 기본값은 둘 다. 한 명만 보낼 때 한 번만 눌러 끄면 된다.
       recipients: { daughter1: true, daughter2: true },
     };
@@ -253,16 +273,16 @@ export function initMom() {
     }
 
     const bottom = makeEl("div", "draft-bottom");
-    const date = document.createElement("input");
-    date.type = "date";
-    date.className = "field";
-    date.value = draft.date;
-    date.dataset.action = "date";
-    date.dataset.key = draft.key;
-    date.setAttribute("aria-label", "마감일 (선택)");
-    bottom.append(renderRecipientToggles(draft), date);
+    bottom.append(renderRecipientToggles(draft));
 
-    card.append(head, chips, subjectRow, bottom);
+    // 마감일 + 급한 일. 달력을 열지 않고도 한 번에 고를 수 있게 칩을 두었다.
+    const dueRow = makeEl("div", "edit-due");
+    dueRow.append(
+      createDuePicker(draft.date, (v) => { draft.date = v; }),
+      createUrgentToggle(draft.urgent, (v) => { draft.urgent = v; })
+    );
+
+    card.append(head, chips, subjectRow, bottom, dueRow);
 
     // 세부 항목 — 딸 화면에서 하나씩 체크하게 될 목록. 여기서 지우거나 고칠 수 있다.
     if (draft.items.length > 0) {
@@ -340,9 +360,6 @@ export function initMom() {
       case "title":
         draft.title = target.value; // 다시 그리면 커서가 튀므로 값만 갱신한다
         break;
-      case "date":
-        draft.date = target.value;
-        break;
       case "category":
         draft.category = target.dataset.value;
         renderDrafts();
@@ -406,6 +423,7 @@ export function initMom() {
             items: draft.items,
             memo: draft.memo,
             date: draft.date,
+            urgent: draft.urgent === true,
             completed: false,
             addedBy: "mom",
             source: state.sourceId,
@@ -428,17 +446,23 @@ export function initMom() {
     }
   }
 
-  // --- 현황 보기 탭 (읽기 전용) --------------------------------------------
+  // --- 현황 보기 탭 --------------------------------------------------------
   //
-  // 두 아이를 한 화면에 세로로 나란히 놓는다. 아이별로 진행률 · 남은 항목 몇 개 ·
-  // 마지막으로 움직인 시각만 보여준다.
-  // 목록에 체크박스나 입력칸을 만들지 않는다 — 엄마가 대신 완료 처리를 하게 되기 때문.
-  // (응원 한마디 버튼은 예외다. 할일이 아니라 meta/cheer 에만 쓴다)
+  // 두 아이를 한 화면에 세로로 나란히 놓는다. 아이별로 진행률 · 남은 항목 ·
+  // 마지막으로 움직인 시각을 보여준다.
+  //
+  // 완료 체크는 여기서 할 수 없다 — 목록에 체크박스를 만들지 않는다.
+  // (엄마가 딸 대신 완료 처리를 해버리는 걸 막기 위한 것이다)
+  // 다만 이미 보낸 숙제의 내용은 여기서 고칠 수 있다. 잘못 읽힌 학원 숙제를
+  // 지웠다 다시 보내게 하지 않으려는 것이고, 고치는 것은 완료 처리와 다르다.
+  //
+  // 항목을 누르면 세부 내용이 펼쳐진다. 펼침 상태는 state.expandedIds에 기억해 둔다 —
+  // 실시간 갱신이 올 때마다 다시 그리기 때문에 기억하지 않으면 저절로 접힌다.
 
-  /** 카드에 미리 보여줄 남은 항목 개수 */
+  /** 접혀 있을 때 보여줄 남은 항목 개수 */
   const PREVIEW_COUNT = 3;
 
-  /** 응원 한마디 기본 문구 */
+  /** 응원 한마디 기본 문구 (직접 써서 보낼 수도 있다) */
   const CHEER_CHIPS = [
     "잘하고 있어",
     "저녁 전에 한 개만 더",
@@ -466,6 +490,142 @@ export function initMom() {
       if (at && (!latest || at > latest)) latest = at;
     }
     return latest;
+  }
+
+  function closeWatchEditor() {
+    state.editing = null;
+    state.editDraft = null;
+    state.editorEl = null;
+  }
+
+  /** 펼친 항목의 세부 내용 (읽기 전용 — 체크박스가 아니라 글자다) */
+  function renderTodoDetail(studentId, todo) {
+    const box = makeEl("div", "watch-detail");
+
+    const meta = makeEl("div", "watch-meta");
+    if (todo.subject && todo.subject !== "기타") {
+      meta.appendChild(
+        makeEl("span", "badge badge--subject subject--" + SUBJECT_KEY[todo.subject], todo.subject)
+      );
+    }
+    meta.appendChild(makeEl("span", "badge badge--" + CATEGORY_KEY[todo.category], todo.category));
+    const due = dueLabel(todo);
+    if (due) meta.appendChild(makeEl("span", "due due--" + due.tone, due.text));
+    if (todo.urgent) meta.appendChild(makeEl("span", "badge badge--urgent", "급해요"));
+    box.appendChild(meta);
+
+    const items = Array.isArray(todo.items) ? todo.items : [];
+    if (items.length > 0) {
+      const ul = makeEl("ul", "watch-items");
+      for (const item of items) {
+        const li = makeEl("li", "watch-item" + (item.done ? " is-done" : ""));
+        li.append(
+          makeEl("span", "watch-item-mark", item.done ? "✓" : "·"),
+          makeEl("span", "watch-item-text", item.text)
+        );
+        ul.appendChild(li);
+      }
+      box.appendChild(ul);
+    }
+    if (todo.memo) box.appendChild(makeEl("p", "watch-memo", "참고: " + todo.memo));
+
+    const edit = makeEl("button", "btn btn--ghost btn--small", "내용 고치기");
+    edit.type = "button";
+    edit.dataset.action = "watch-edit";
+    edit.dataset.student = studentId;
+    edit.dataset.id = todo.id;
+    box.appendChild(edit);
+
+    return box;
+  }
+
+  /** 남은 항목 한 줄. 누르면 펼쳐진다. */
+  function renderWatchRow(studentId, todo) {
+    const li = makeEl("li", "watch-row" + (todo.urgent ? " is-urgent" : ""));
+    const open = state.expandedIds.has(todo.id);
+
+    if (state.editing && state.editing.id === todo.id) {
+      if (!state.editorEl) {
+        state.editDraft = makeEditDraft(todo);
+        state.editorEl = createTodoEditor(state.editDraft, {
+          onSave: (draft) => saveWatchEdit(studentId, draft),
+          onCancel: () => { closeWatchEditor(); renderWatch(); },
+        });
+      }
+      li.classList.add("is-editing");
+      li.appendChild(state.editorEl);
+      return li;
+    }
+
+    const counts = countTodo(todo);
+    const btn = makeEl("button", "watch-title");
+    btn.type = "button";
+    btn.dataset.action = "watch-expand";
+    btn.dataset.id = todo.id;
+    btn.setAttribute("aria-expanded", String(open));
+    if (todo.urgent) btn.appendChild(makeEl("span", "urgent-mark", "!"));
+    btn.appendChild(makeEl("span", "watch-title-text", todo.title));
+    if (counts.총 > 1) {
+      btn.appendChild(makeEl("span", "watch-count", counts.완료 + "/" + counts.총));
+    }
+    btn.appendChild(makeEl("span", "watch-caret", open ? "▾" : "▸"));
+    li.appendChild(btn);
+
+    if (open) li.appendChild(renderTodoDetail(studentId, todo));
+    return li;
+  }
+
+  /**
+   * 응원 한마디 줄. 고를 수도 있고 직접 써서 보낼 수도 있다.
+   * 입력칸을 그대로 다시 그리면 쓰던 글자와 커서가 날아가므로 한 번 만들어 두고 재사용한다.
+   */
+  function cheerBox(studentId) {
+    const kid = state.kids[studentId];
+    if (kid.cheerEl) return kid.cheerEl;
+
+    const box = makeEl("div", "cheer-box");
+
+    const chips = makeEl("div", "cheer-chips");
+    for (const text of CHEER_CHIPS) {
+      const chip = makeEl("button", "cheer-chip", text);
+      chip.type = "button";
+      chip.dataset.cheer = text;
+      chip.dataset.student = studentId;
+      chips.appendChild(chip);
+    }
+
+    const row = makeEl("div", "cheer-write");
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "field";
+    input.maxLength = MAX_CHEER_LENGTH;
+    input.placeholder = "직접 써서 보내기";
+    input.setAttribute("aria-label", STUDENT_LABEL[studentId] + "에게 보낼 응원 한마디");
+
+    const send = makeEl("button", "btn btn--primary btn--small", "보내기");
+    send.type = "button";
+
+    function submit() {
+      const text = input.value.trim();
+      if (!text) {
+        input.focus();
+        return;
+      }
+      input.value = "";
+      sendCheer(studentId, text);
+    }
+    send.addEventListener("click", submit);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        submit();
+      }
+    });
+
+    row.append(input, send);
+    box.append(chips, row);
+    kid.cheerEl = box;
+    return box;
   }
 
   function renderKidCard(studentId) {
@@ -498,8 +658,8 @@ export function initMom() {
     bar.appendChild(fill);
     card.appendChild(bar);
 
-    // 남은 항목 미리보기 — 제목만, 누를 수 없는 글이다
-    const { active } = splitByCompleted(todos);
+    // 남은 항목 — 급한 일이 먼저 온다
+    const active = sortByUrgency(splitByCompleted(todos).active);
     if (kid.error) {
       card.appendChild(makeEl("p", "kid-sub", kid.error));
     } else if (!kid.loaded) {
@@ -509,34 +669,26 @@ export function initMom() {
         makeEl("p", "kid-sub", todos.length ? "남은 할 일이 없어요 🎉" : "아직 할 일이 없습니다.")
       );
     } else {
-      const ul = makeEl("ul", "kid-remain");
-      for (const todo of active.slice(0, PREVIEW_COUNT)) {
-        const li = makeEl("li");
-        const counts = countTodo(todo);
-        const label =
-          counts.총 > 1 ? todo.title + " (" + counts.완료 + "/" + counts.총 + ")" : todo.title;
-        li.appendChild(makeEl("span", "kid-remain-text", label));
-        ul.appendChild(li);
-      }
+      const showAll = state.showAll[studentId];
+      const shown = showAll ? active : active.slice(0, PREVIEW_COUNT);
+      const ul = makeEl("ul", "watch-list");
+      for (const todo of shown) ul.appendChild(renderWatchRow(studentId, todo));
       card.appendChild(ul);
+
       if (active.length > PREVIEW_COUNT) {
-        card.appendChild(
-          makeEl("p", "kid-sub", "외 " + (active.length - PREVIEW_COUNT) + "개 더 남았어요")
+        const more = makeEl(
+          "button",
+          "btn btn--ghost btn--small",
+          showAll ? "접기" : "외 " + (active.length - PREVIEW_COUNT) + "개 더 보기"
         );
+        more.type = "button";
+        more.dataset.action = "watch-more";
+        more.dataset.student = studentId;
+        card.appendChild(more);
       }
     }
 
-    // 응원 한마디
-    const chips = makeEl("div", "cheer-chips");
-    for (const text of CHEER_CHIPS) {
-      const chip = makeEl("button", "cheer-chip", text);
-      chip.type = "button";
-      chip.dataset.cheer = text;
-      chip.dataset.student = studentId;
-      chips.appendChild(chip);
-    }
-    card.appendChild(chips);
-
+    card.appendChild(cheerBox(studentId));
     if (kid.cheerNote) card.appendChild(makeEl("p", "kid-sub", kid.cheerNote));
 
     return card;
@@ -559,6 +711,11 @@ export function initMom() {
           state.kids[id].todos = todos;
           state.kids[id].loaded = true;
           state.kids[id].error = "";
+          // 고치던 항목이 사라졌으면(딸이 지웠다면) 폼을 닫는다
+          if (state.editing && state.editing.studentId === id &&
+              !todos.some((t) => t.id === state.editing.id)) {
+            closeWatchEditor();
+          }
           renderWatch();
         },
         (err) => {
@@ -570,6 +727,35 @@ export function initMom() {
     );
 
     state.unsubscribe = () => stops.forEach((stop) => stop());
+    renderWatch();
+  }
+
+  /** 이미 보낸 숙제의 내용을 고친다 (완료 여부는 건드리지 않는다) */
+  async function saveWatchEdit(studentId, draft) {
+    const items = draft.items
+      .map((it) => ({ text: String(it.text || "").trim(), done: it.done === true }))
+      .filter((it) => it.text);
+    if (!draft.title.trim()) {
+      state.kids[studentId].cheerNote = "제목은 비울 수 없습니다.";
+      renderWatch();
+      return;
+    }
+    try {
+      await updateTodo(studentId, draft.id, {
+        title: draft.title.trim(),
+        category: draft.category,
+        subject: draft.subject,
+        date: draft.date,
+        memo: draft.memo.trim(),
+        urgent: draft.urgent === true,
+        items,
+      });
+      closeWatchEditor();
+      state.kids[studentId].cheerNote = "고쳤습니다.";
+    } catch (err) {
+      console.error("[mom] 수정 실패", err);
+      state.kids[studentId].cheerNote = "고치지 못했습니다. (" + (err.code || err.message) + ")";
+    }
     renderWatch();
   }
 
@@ -587,7 +773,6 @@ export function initMom() {
     }
     renderWatch();
   }
-
 
   // --- 탭 전환 -------------------------------------------------------------
 
@@ -732,8 +917,30 @@ export function initMom() {
   if (els.kidCards) {
     els.kidCards.addEventListener("click", (e) => {
       const chip = e.target.closest("[data-cheer]");
-      if (!chip) return;
-      sendCheer(chip.dataset.student, chip.dataset.cheer);
+      if (chip) {
+        sendCheer(chip.dataset.student, chip.dataset.cheer);
+        return;
+      }
+      const btn = e.target.closest("[data-action]");
+      if (!btn) return;
+      switch (btn.dataset.action) {
+        case "watch-expand": {
+          const id = btn.dataset.id;
+          if (state.expandedIds.has(id)) state.expandedIds.delete(id);
+          else state.expandedIds.add(id);
+          renderWatch();
+          break;
+        }
+        case "watch-more":
+          state.showAll[btn.dataset.student] = !state.showAll[btn.dataset.student];
+          renderWatch();
+          break;
+        case "watch-edit":
+          closeWatchEditor();
+          state.editing = { studentId: btn.dataset.student, id: btn.dataset.id };
+          renderWatch();
+          break;
+      }
     });
   }
 

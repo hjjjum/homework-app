@@ -63,8 +63,9 @@
           <!-- 칩은 app.js가 채운다 -->
           <div class="chip-group" id="quick-category" aria-labelledby="quick-category-label"></div>
 
-          <label for="quick-date">마감일 (선택)</label>
-          <input class="field" type="date" id="quick-date" />
+          <span class="field-label">마감일</span>
+          <!-- 다음 수업까지 / 오늘 / 내일 / 모레 + 달력. app.js가 채운다 -->
+          <div id="quick-date"></div>
 
           <div class="add-actions">
             <button type="button" class="btn btn--primary" id="quick-add-btn">추가</button>

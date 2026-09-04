@@ -122,3 +122,48 @@ export function sameDay(a, b) {
     a.getDate() === b.getDate()
   );
 }
+
+// --- 마감일 ------------------------------------------------------------------
+// 숙제는 날짜를 비워두는 게 기본이고, 그 뜻은 "다음 수업 시간까지"다.
+// 학원 숙제는 대부분 그렇기 때문에, 엄마가 매번 날짜를 고르지 않아도 되게 했다.
+// date에 값이 있으면 그 날짜가 이긴다.
+
+export const NEXT_CLASS = "다음 수업까지";
+
+/**
+ * 화면에 붙일 마감 뱃지를 정한다.
+ * 날짜가 있으면 formatDue 그대로, 없으면 숙제에 한해 "다음 수업까지".
+ * (개인스케줄·공부는 날짜가 없으면 뱃지도 없다)
+ * @returns {{text: string, tone: "past"|"today"|"soon"|"later"|"next"}|null}
+ */
+export function dueLabel(todo, today = new Date()) {
+  const due = formatDue(todo && todo.date, today);
+  if (due) return due;
+  if (todo && todo.category === "숙제") return { text: NEXT_CLASS, tone: "next" };
+  return null;
+}
+
+/** Date → "YYYY-MM-DD" (그 사람이 사는 곳 기준. toISOString은 UTC라 하루가 밀린다) */
+export function toDateValue(d) {
+  if (!(d instanceof Date) || isNaN(d)) return "";
+  const pad = (n) => String(n).padStart(2, "0");
+  return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+}
+
+/** 오늘로부터 days일 뒤의 "YYYY-MM-DD" */
+export function shiftDate(days, base = new Date()) {
+  const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + days);
+  return toDateValue(d);
+}
+
+/**
+ * 긴급 → 나머지 순으로 정렬한다. 같은 급 안의 순서는 그대로 둔다.
+ * (원본 배열은 건드리지 않는다)
+ */
+export function sortByUrgency(todos) {
+  const list = (todos || []).slice();
+  return list
+    .map((t, i) => ({ t, i }))
+    .sort((a, b) => (b.t.urgent === true) - (a.t.urgent === true) || a.i - b.i)
+    .map((x) => x.t);
+}

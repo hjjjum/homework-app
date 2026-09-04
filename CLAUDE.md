@@ -67,6 +67,12 @@ mom.html        →  js/mom.js  ┤→  js/db.js  →  js/firebase-config.js  �
   그 모듈들에 넣는 편이 검증하기 쉽다.
   `alert()` / `confirm()` / `prompt()`는 쓰지 않는다 — 브라우저 모달이 자동화 세션을 멈추게 하므로,
   삭제 확인은 "한 번 더 누르기", 항목 수정은 인라인 폼으로 처리한다.
+- **js/due-picker.js** — 마감일 칩 한 줄(`createDuePicker`)과 급한 일 토글(`createUrgentToggle`).
+  엄마 화면·딸 화면·편집 폼이 모두 이것을 쓴다.
+- **js/todo-editor.js** — 이미 저장된 할일 하나를 고치는 인라인 폼(`createTodoEditor`).
+  세부 항목까지 여기서 고친다. 폼 DOM을 만들어 두고 **재사용**해야 한다 —
+  실시간 갱신마다 새로 만들면 입력하던 글자와 커서가 날아간다
+  (app.js의 `state.editorEl`, mom.js의 `state.editorEl`이 그 역할).
 - **js/todo-logic.js** — 두 화면이 함께 쓰는 순수 함수(`filterByCategory` / `splitByCompleted` /
   `calcProgress` / `formatDue`)와 `CATEGORY_KEY`. DOM·Firestore에 의존하지 않으므로 Node에서
   그대로 테스트할 수 있다. 진행률이나 정렬 규칙을 바꿀 일이 있으면 여기 한 곳만 고치면 두 화면에
@@ -103,11 +109,13 @@ mom.html        →  js/mom.js  ┤→  js/db.js  →  js/firebase-config.js  �
 
   표가 인식되면 글로 바꾸지 않고 **구조 그대로** 카드/할일을 만든다.
   글로 바꿨다가 다시 파싱하면 칸 경계가 또 뭉개진다.
-- **js/mom.js** — 엄마 화면. 입력 탭(쓰기 전용)과 현황 보기 탭(읽기 전용) 두 개.
-  **현황 탭은 의도적으로 읽기 전용이다** — 목록에 input/textarea/select를 만들지 않는다.
-  세부 내용을 펼치는 버튼은 있지만 보기 상태만 바꿀 뿐 데이터는 건드리지 않는다.
-  편의를 위해서라도 여기에 체크박스나 수정 칸을 추가하지 말 것
-  (엄마가 딸 대신 완료 처리를 해버리게 된다).
+- **js/mom.js** — 엄마 화면. 입력 탭과 현황 보기 탭 두 개. 현황 탭은 두 아이를 한 화면에
+  세로로 놓는다.
+  **현황 탭에는 체크박스를 만들지 않는다** — 엄마가 딸 대신 완료 처리를 해버리기 때문이다.
+  완료 여부만 못 건드릴 뿐, 이미 보낸 숙제의 **내용은 고칠 수 있다**
+  (잘못 읽힌 학원 숙제 때문에 지웠다 다시 보내게 하지 않으려는 것. `saveWatchEdit`이
+  completed를 patch에 넣지 않는 것이 핵심이다).
+  항목을 누르면 세부 내용이 펼쳐진다.
   펼침 상태는 `state.expandedIds`에 기억해 둔다 — 실시간 갱신이 올 때마다 다시 그리기 때문에
   기억하지 않으면 보던 항목이 저절로 접힌다.
   현황 탭을 처음 열 때만 `listenTodos`를 구독하고, 보는 딸이 바뀌면 이전 구독을 끊고 새로 건다.
@@ -138,7 +146,14 @@ mom.html        →  js/mom.js  ┤→  js/db.js  →  js/firebase-config.js  �
   `source`(string, 어떤 입력 방식으로 들어왔는지 — `"academy"|"manual"|"whole"`),
   `subject`(`"수학"|"영어"|"과학"|"국어"|"사회"|"기타"`),
   `items`(list of `{text, done}`, 최대 50개 — 학원 숙제의 세부 항목),
-  `createdAt`(serverTimestamp)
+  `urgent`(bool — 급한 일. 목록에서 맨 위로 올라간다),
+  `createdAt` / `updatedAt`(serverTimestamp)
+
+**`date`가 비어 있는 것은 "정하지 않음"이 아니라 "다음 수업까지"라는 뜻이다.** 학원 숙제는
+대부분 그래서 기본값으로 뒀다. 화면에 붙일 문구는 `todo-logic.js`의 `dueLabel()`이 정한다
+(숙제만 "다음 수업까지"가 붙고, 개인스케줄·공부는 날짜가 없으면 뱃지도 없다).
+날짜를 고르는 UI는 칩(다음 수업까지/오늘/내일/모레) + 달력이고, 표 캡쳐에 날짜가 적혀 있으면
+`parseDueDate()`가 읽어 미리 채운다.
 
 **카테고리와 과목은 다른 축이다.** 카테고리는 "숙제/개인스케줄/공부"처럼 할 일의 종류이고,
 과목은 "수학/영어..."다. 학원 숙제는 보통 category=숙제 + subject=수학 조합이 된다.

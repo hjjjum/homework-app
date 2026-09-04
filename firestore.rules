@@ -28,7 +28,7 @@ service cloud.firestore {
         function isValidTodo(d) {
           return d.keys().hasOnly(
                    ['title', 'category', 'completed', 'date',
-                    'memo', 'addedBy', 'source', 'subject', 'items',
+                    'memo', 'addedBy', 'source', 'subject', 'items', 'urgent',
                     'createdAt', 'updatedAt'])
               && d.keys().hasAll(['title', 'category', 'completed'])
               && d.title is string
@@ -46,6 +46,8 @@ service cloud.firestore {
                   || d.subject in ['수학', '영어', '과학', '국어', '사회', '기타'])
               // 세부 항목: [{text, done}] 배열. 개수만 제한하고 내부는 앱이 정리한다.
               && (!('items' in d) || (d.items is list && d.items.size() <= 50))
+              // 급한 일 표시
+              && (!('urgent' in d) || d.urgent is bool)
               && (!('createdAt' in d) || d.createdAt is timestamp)
               && (!('updatedAt' in d) || d.updatedAt is timestamp);
         }

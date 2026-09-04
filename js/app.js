@@ -25,7 +25,11 @@ import {
   countTodo,
   allItemsDone,
   sameDay,
+  dueLabel,
+  sortByUrgency,
 } from "./todo-logic.js";
+import { createDuePicker, createUrgentToggle } from "./due-picker.js";
+import { createTodoEditor, makeEditDraft } from "./todo-editor.js";
 import { parseManualInput } from "./sources/manual-input.js";
 import { INPUT_SOURCES, getSource } from "./sources/index.js";
 import { recognizeImage, imageFromPaste, parseDueDate } from "./ocr.js";
@@ -92,6 +96,10 @@ export function initApp(studentId) {
     sourceId: INPUT_SOURCES[0].id,
     completedOpen: false,
     editingId: null,    // 인라인 수정 중인 항목
+    editDraft: null,    // 수정 중인 값 사본 (실시간 갱신에도 살아남는다)
+    editorEl: null,     // 만들어 둔 폼 DOM. 다시 그릴 때 그대로 재사용한다
+    quickDate: "",      // 빠른 추가의 마감일 ("" = 다음 수업까지)
+    quickUrgent: false, // 빠른 추가의 급한 일 표시
     confirmingId: null, // 삭제 확인 대기 중인 항목
     confirmingAll: false,
   };
@@ -191,60 +199,33 @@ export function initApp(studentId) {
     }
   }
 
-  /** 수정 중인 항목 → 인라인 편집 폼 */
+  /**
+   * 수정 중인 항목 → 인라인 편집 폼.
+   * 폼 DOM을 한 번만 만들어 두고 재사용한다 — 실시간 갱신으로 목록을 다시 그릴 때
+   * 폼을 새로 만들면 입력하던 글자와 커서가 날아간다.
+   */
   function renderEditForm(todo) {
     const li = makeEl("li", "todo todo--editing");
     li.dataset.id = todo.id;
 
-    const form = makeEl("div", "edit-form");
-
-    // 여러 줄짜리 제목(학원 알림장 등)을 <input>에 넣으면 줄바꿈이 지워진다.
-    const multiline = todo.title.includes("\n");
-    const title = document.createElement(multiline ? "textarea" : "input");
-    if (multiline) {
-      title.rows = Math.min(todo.title.split("\n").length + 1, 10);
-    } else {
-      title.type = "text";
+    if (!state.editorEl) {
+      state.editDraft = makeEditDraft(todo);
+      state.editorEl = createTodoEditor(state.editDraft, {
+        onSave: (draft) => handleSave(draft),
+        onCancel: () => {
+          closeEditor();
+          render();
+        },
+      });
     }
-    title.className = "field";
-    title.value = todo.title;
-    title.dataset.field = "title";
-    title.setAttribute("aria-label", "할 일 제목");
-
-    const chips = makeEl("div", "chip-group");
-    chips.dataset.field = "category";
-    buildCategoryChips(chips, todo.category);
-
-    const row = makeEl("div", "edit-row");
-    const date = document.createElement("input");
-    date.type = "date";
-    date.className = "field";
-    date.value = todo.date || "";
-    date.dataset.field = "date";
-    date.setAttribute("aria-label", "마감일");
-
-    const memo = document.createElement("input");
-    memo.type = "text";
-    memo.className = "field";
-    memo.placeholder = "메모 (선택)";
-    memo.value = todo.memo || "";
-    memo.dataset.field = "memo";
-    memo.setAttribute("aria-label", "메모");
-    row.append(date, memo);
-
-    const actions = makeEl("div", "edit-actions");
-    const save = makeEl("button", "btn btn--primary", "저장");
-    save.type = "button";
-    save.dataset.action = "save";
-    save.dataset.id = todo.id;
-    const cancel = makeEl("button", "btn btn--ghost", "취소");
-    cancel.type = "button";
-    cancel.dataset.action = "cancel-edit";
-    actions.append(save, cancel);
-
-    form.append(title, chips, row, actions);
-    li.appendChild(form);
+    li.appendChild(state.editorEl);
     return li;
+  }
+
+  function closeEditor() {
+    state.editingId = null;
+    state.editDraft = null;
+    state.editorEl = null;
   }
 
   /** 삭제 확인 대기 중인 항목 */
@@ -271,7 +252,7 @@ export function initApp(studentId) {
     if (state.editingId === todo.id) return renderEditForm(todo);
     if (state.confirmingId === todo.id) return renderDeleteConfirm(todo);
 
-    const li = makeEl("li", "todo");
+    const li = makeEl("li", "todo" + (todo.urgent ? " todo--urgent" : ""));
     li.dataset.id = todo.id;
 
     // 체크박스: 보이는 크기는 24px이지만 label이 44px 터치 영역을 만든다.
@@ -308,7 +289,8 @@ export function initApp(studentId) {
       makeEl("span", "badge badge--" + CATEGORY_KEY[todo.category], todo.category)
     );
 
-    const due = formatDue(todo.date);
+    // 마감일. 숙제는 날짜를 안 정해도 "다음 수업까지"가 기본으로 붙는다.
+    const due = dueLabel(todo);
     if (due) meta.appendChild(makeEl("span", "due due--" + due.tone, due.text));
     if (todo.addedBy === "mom") meta.appendChild(makeEl("span", "from-mom", "엄마가 보냄"));
 
@@ -322,6 +304,17 @@ export function initApp(studentId) {
 
     main.appendChild(meta);
 
+    // 급한 일 표시 단추 — 목록에서 바로 켜고 끈다
+    const urgent = makeEl("button", "urgent-btn urgent-btn--inline");
+    urgent.type = "button";
+    urgent.dataset.action = "urgent";
+    urgent.dataset.id = todo.id;
+    urgent.dataset.on = todo.urgent ? "true" : "false";
+    urgent.setAttribute("aria-pressed", String(todo.urgent === true));
+    urgent.setAttribute("aria-label", todo.title + " 급한 일로 표시");
+    urgent.title = "급한 일로 표시";
+    urgent.appendChild(makeEl("span", "urgent-mark", "!"));
+
     const del = makeEl("button", "icon-btn");
     del.type = "button";
     del.dataset.action = "delete";
@@ -331,7 +324,7 @@ export function initApp(studentId) {
 
     // 한 줄짜리 요약 부분
     const row = makeEl("div", "todo-row");
-    row.append(check, main, del);
+    row.append(check, main, urgent, del);
     li.appendChild(row);
 
     // 세부 항목이 있으면 하나씩 체크할 수 있게 아래에 펼쳐준다
@@ -373,7 +366,10 @@ export function initApp(studentId) {
 
   function render() {
     const visible = filterByCategory(state.todos, state.filter);
-    const { active, completed } = splitByCompleted(visible);
+    const split = splitByCompleted(visible);
+    // 급한 일이 맨 위로 (같은 급 안에서는 원래 순서 그대로)
+    const active = sortByUrgency(split.active);
+    const completed = split.completed;
 
     renderFilters();
     renderProgress();
@@ -441,25 +437,43 @@ export function initApp(studentId) {
     }
   }
 
-  async function handleSave(li, id) {
-    const get = (field) => li.querySelector('[data-field="' + field + '"]');
+  async function handleSave(draft) {
+    const items = draft.items
+      .map((it) => ({ text: String(it.text || "").trim(), done: it.done === true }))
+      .filter((it) => it.text);
     const changes = {
-      title: get("title").value.trim(),
-      category: get("category").dataset.value,
-      date: get("date").value,
-      memo: get("memo").value.trim(),
+      title: draft.title.trim(),
+      category: draft.category,
+      subject: draft.subject,
+      date: draft.date,
+      memo: draft.memo.trim(),
+      urgent: draft.urgent === true,
+      items,
     };
     if (!changes.title) {
       setStatus("제목은 비울 수 없어요.", true);
       return;
     }
+    // 세부 항목을 다 지웠는데 완료로 남아 있으면 이상하므로 함께 맞춰준다
+    if (items.length > 0) changes.completed = items.every((it) => it.done);
+
     try {
-      await updateTodo(studentId, id, changes);
-      state.editingId = null;
+      await updateTodo(studentId, draft.id, changes);
+      closeEditor();
       setStatus("수정했어요.");
       render();
     } catch (err) {
       reportError("수정", err);
+    }
+  }
+
+  /** 목록에서 바로 급한 일 표시를 켜고 끈다 */
+  async function handleUrgent(id, next) {
+    try {
+      await updateTodo(studentId, id, { urgent: next });
+      setStatus(next ? "급한 일로 표시했어요." : "급한 일 표시를 풀었어요.");
+    } catch (err) {
+      reportError("급한 일 표시", err);
     }
   }
 
@@ -521,7 +535,7 @@ export function initApp(studentId) {
       return;
     }
     const category = els.quickCategory ? els.quickCategory.dataset.value : CATEGORIES[0];
-    const date = els.quickDate ? els.quickDate.value : "";
+    const date = state.quickDate;
 
     els.quickAddBtn.disabled = true;
     els.quickAddBtn.textContent = "추가 중...";
@@ -540,13 +554,14 @@ export function initApp(studentId) {
           items: Array.isArray(data.items) ? data.items : [],
           memo: data.memo || "",
           date,
+          urgent: state.quickUrgent,
           completed: false,
           addedBy: "self",
           source: state.sourceId,
         });
       }
       els.quickInput.value = "";
-      if (els.quickDate) els.quickDate.value = "";
+      resetQuickDue();
       setOcrStatus("");
       state.addOpen = false;
       setStatus(parsedList.length + "개 추가했어요.");
@@ -594,7 +609,9 @@ export function initApp(studentId) {
             category,
             subject,
             items: section.lines,
-            date: parseDueDate(section.date),
+            // 표에 날짜가 적혀 있으면 그 날짜가 마감일이 된다 (없으면 다음 수업까지)
+            date: parseDueDate(section.date) || state.quickDate,
+            urgent: state.quickUrgent,
             completed: false,
             addedBy: "self",
             source: "academy",
@@ -628,7 +645,6 @@ export function initApp(studentId) {
     if (!trigger) return;
     const action = trigger.dataset.action;
     const id = trigger.dataset.id;
-    const li = trigger.closest("li");
 
     switch (action) {
       case "toggle":
@@ -638,20 +654,17 @@ export function initApp(studentId) {
         handleToggleItem(id, Number(trigger.dataset.index), trigger.checked);
         break;
       case "edit":
+        closeEditor();
         state.editingId = id;
         state.confirmingId = null;
         render();
         break;
-      case "cancel-edit":
-        state.editingId = null;
-        render();
-        break;
-      case "save":
-        handleSave(li, id);
+      case "urgent":
+        handleUrgent(id, trigger.dataset.on !== "true");
         break;
       case "delete":
         state.confirmingId = id;
-        state.editingId = null;
+        closeEditor();
         render();
         break;
       case "cancel-delete":
@@ -737,7 +750,28 @@ export function initApp(studentId) {
     });
   }
 
+  /**
+   * 빠른 추가 폼의 마감일 줄. 기본은 "다음 수업까지"(빈 값)라서, 학원 숙제를
+   * 넣을 때는 날짜를 아예 건드리지 않아도 된다.
+   */
+  function renderQuickDue() {
+    if (!els.quickDate) return;
+    els.quickDate.textContent = "";
+    els.quickDate.className = "edit-due";
+    els.quickDate.append(
+      createDuePicker(state.quickDate, (v) => { state.quickDate = v; }),
+      createUrgentToggle(state.quickUrgent, (v) => { state.quickUrgent = v; })
+    );
+  }
+
+  function resetQuickDue() {
+    state.quickDate = "";
+    state.quickUrgent = false;
+    renderQuickDue();
+  }
+
   if (els.quickCategory) buildCategoryChips(els.quickCategory, CATEGORIES[0]);
+  renderQuickDue();
   renderSourcePicker();
 
   // --- 실시간 구독 ---------------------------------------------------------
@@ -774,7 +808,7 @@ export function initApp(studentId) {
       state.todos = todos;
       // 수정/삭제 확인 중이던 항목이 사라졌다면 상태를 정리한다.
       const ids = new Set(todos.map((t) => t.id));
-      if (state.editingId && !ids.has(state.editingId)) state.editingId = null;
+      if (state.editingId && !ids.has(state.editingId)) closeEditor();
       if (state.confirmingId && !ids.has(state.confirmingId)) state.confirmingId = null;
       render();
     },

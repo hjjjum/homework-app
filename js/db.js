@@ -72,7 +72,7 @@ export function normalizeItems(items) {
  * - 선택 필드(date, memo)는 값이 없으면 빈 문자열로 채움
  */
 function normalizeTodo(todoData) {
-  const { title, category, completed, date, memo, addedBy, source, subject, items } =
+  const { title, category, completed, date, memo, addedBy, source, subject, items, urgent } =
     todoData || {};
 
   if (typeof title !== "string" || title.trim() === "") {
@@ -96,6 +96,8 @@ function normalizeTodo(todoData) {
     subject: SUBJECTS.includes(subject) ? subject : DEFAULT_SUBJECT,
     // 세부 항목. 학원 숙제처럼 여러 개를 하나씩 체크해야 할 때 쓴다.
     items: normalizeItems(items),
+    // 급한 일 표시. 목록에서 맨 위로 올라가고 눈에 띄는 표시가 붙는다.
+    urgent: urgent === true,
   };
 }
 
@@ -133,7 +135,7 @@ export async function updateTodo(studentId, todoId, changes) {
   // 허용된 필드만 통과시킨다 (createdAt 등은 수정 불가).
   const allowed = [
     "title", "category", "completed", "date", "memo",
-    "addedBy", "source", "subject", "items",
+    "addedBy", "source", "subject", "items", "urgent",
   ];
   const patch = {};
   for (const key of allowed) {
@@ -150,6 +152,7 @@ export async function updateTodo(studentId, todoId, changes) {
     throw new Error("subject는 " + SUBJECTS.join(" / ") + " 중 하나여야 합니다.");
   }
   if ("items" in patch) patch.items = normalizeItems(patch.items);
+  if ("urgent" in patch) patch.urgent = patch.urgent === true;
 
   // 엄마 화면에서 "마지막으로 움직인 시각"을 보여주기 위한 것.
   // 정렬은 계속 createdAt으로 하므로 목록 순서에는 영향이 없다.
