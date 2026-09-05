@@ -11,61 +11,91 @@
 <meta name="design_doc_mode" content="canvas">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&family=Gowun+Batang:wght@400;700&display=swap" rel="stylesheet">
 <style>
+@font-face{font-family:'YanoljaYache';font-weight:400;font-display:swap;
+src:url('fonts/Yanolja-Yache-Regular.ttf') format('truetype');}
+@font-face{font-family:'JeulgeounIyagi';font-weight:500;font-display:swap;
+src:url('fonts/JeulgeounIyagi-Medium.ttf') format('truetype');}
 body{margin:0;background:#F4EFE6;-webkit-font-smoothing:antialiased}
-a{color:#FF5B3E}a:hover{color:#d9401f}
+a{color:var(--ac)}a:hover{color:#d9401f}
 @keyframes conf{0%{transform:translateY(-30px) rotate(0deg);opacity:1}100%{transform:translateY(760px) rotate(620deg);opacity:0}}
 @keyframes stamp{0%{transform:scale(.3) rotate(-18deg);opacity:0}55%{transform:scale(1.22) rotate(6deg);opacity:1}100%{transform:scale(1) rotate(0deg);opacity:1}}
 @keyframes rise{0%{transform:translateY(14px);opacity:0}100%{transform:translateY(0);opacity:1}}
 @keyframes twk{0%,100%{transform:scale(1) rotate(0deg);opacity:.9}50%{transform:scale(1.25) rotate(20deg);opacity:1}}
 @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+@keyframes shoot{0%{transform:translateY(-6px) scale(.6);opacity:1}70%{opacity:1}100%{transform:translateY(-30px) scale(.25);opacity:0}}
+@keyframes shockwave{0%{transform:scale(.4);opacity:.85}100%{transform:scale(2.6);opacity:0}}
 </style>
 </helmet>
 
-<section style="padding:34px 40px 6px;font-family:'Gowun Dodum',system-ui,sans-serif">
+<section style="padding:34px 40px 6px;font-family:'Gowun Dodum',system-ui,sans-serif;--fh:'Jua',sans-serif;--fb:'Gowun Dodum',system-ui,sans-serif;--ac:#FF5B3E;--ac2:#FF7FAE;--ac3:#FFC93C;--sky:#8FD9EE;--grn:#3FA86B;--soft:#FFF6F2;--line2:#FFD3C6;--track:#FFE4D9;--dash:#E3B9C9;--sub:#5E93A8;--bg1:#BFE7F6;--bg2:#DCF1F8;--blob1:#FFE9C9;--blob2:#D8F0E3;--blob3:#E6DDF8;--dotA:#FFD3E0;--dotB:#CBEAF6;--warm:#FFF0D9;--gridline:rgba(143,217,238,.3);--stripe:#FFD9E4">
   <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:12px">
-    <span style="font:600 10px ui-monospace,Menlo,monospace;background:#FF5B3E;color:#fff;padding:4px 8px;border-radius:5px">3a</span>
-    <h1 style="font-family:'Jua',sans-serif;font-weight:400;font-size:26px;color:#2F2A33;margin:0">스티커 톤 데모 — 스티커 24종 · 골라 담기</h1>
+    <span style="font:600 10px ui-monospace,Menlo,monospace;background:var(--ac);color:#fff;padding:4px 8px;border-radius:5px">3a</span>
+    <h1 style="font-family:var(--fh);font-weight:400;font-size:26px;color:#2F2A33;margin:0">스티커 톤 데모 — 스티커 52종 · 테마·글꼴 설정</h1>
   </div>
-  <div style="max-width:1000px;font-size:13px;line-height:1.65;color:#5d5563">과일·디저트·꽃·하늘 네 묶음으로 스티커 24종을 그렸습니다. 오른쪽 시트에서 마음에 드는 것만 골라 담으면, 할 일을 체크할 때 그 스티커들만 찍히고 스티커 판도 그 조합으로 채워집니다.</div>
+  <div style="max-width:1000px;font-size:13px;line-height:1.65;color:#5d5563">일곱 묶음으로 스티커 52종을 그렸습니다(고양이 10종·채소 8종·먹을거·사물). 오른쪽 시트에서 마음에 드는 것만 골라 담으면, 할 일을 체크할 때 그 스티커들만 찍히고 스티커 판도 그 조합으로 채워집니다. 화면 아래 <b>설정</b>에서 테마 5가지 · 배경화면 3가지 · 글꼴 4가지를 고를 수 있습니다.</div>
 </section>
 
-<section style="padding:20px 40px 60px;display:flex;flex-wrap:wrap;gap:30px;align-items:flex-start;font-family:'Gowun Dodum',system-ui,sans-serif">
+<section style="padding:20px 40px 60px;display:flex;flex-wrap:wrap;gap:30px;align-items:flex-start;font-family:'Gowun Dodum',system-ui,sans-serif;--fh:'Jua',sans-serif;--fb:'Gowun Dodum',system-ui,sans-serif;--ac:#FF5B3E;--ac2:#FF7FAE;--ac3:#FFC93C;--sky:#8FD9EE;--grn:#3FA86B;--soft:#FFF6F2;--line2:#FFD3C6;--track:#FFE4D9;--dash:#E3B9C9;--sub:#5E93A8;--bg1:#BFE7F6;--bg2:#DCF1F8;--blob1:#FFE9C9;--blob2:#D8F0E3;--blob3:#E6DDF8;--dotA:#FFD3E0;--dotB:#CBEAF6;--warm:#FFF0D9;--gridline:rgba(143,217,238,.3);--stripe:#FFD9E4">
 
   <div style="display:flex;flex-direction:column;gap:9px">
     <div style="font-size:11.5px;color:rgba(0,0,0,.5)">둘째 화면 · 스티커 톤</div>
     <div style="width:390px;height:812px;border-radius:42px;background:#FFFCF5;border:9px solid #24202a;box-shadow:0 18px 40px rgba(0,0,0,.16);overflow:hidden;position:relative">
-      <div style="position:absolute;inset:0;overflow-y:auto;background:#FFFCF5">
+      <div style="position:absolute;inset:0;overflow-y:auto;background:#FFFCF5;font-family:var(--fb);--fh:{{ fhVal }};--fb:{{ fbVal }};--ac:{{ th.ac }};--ac2:{{ th.ac2 }};--ac3:{{ th.ac3 }};--sky:{{ th.sky }};--grn:{{ th.grn }};--soft:{{ th.soft }};--line2:{{ th.line2 }};--track:{{ th.track }};--dash:{{ th.dash }};--sub:{{ th.sub }};--bg1:{{ th.bg1 }};--bg2:{{ th.bg2 }};--blob1:{{ th.blob1 }};--blob2:{{ th.blob2 }};--blob3:{{ th.blob3 }};--dotA:{{ th.dotA }};--dotB:{{ th.dotB }};--warm:{{ th.warm }};--gridline:{{ th.gridline }};--stripe:{{ th.stripe }}">
         <div style="position:relative;min-height:100%">
 
           <div style="position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden">
-            <div style="position:absolute;left:0;right:0;top:0;height:290px;background:linear-gradient(180deg,#BFE7F6 0%,#DCF1F8 62%,#FFFCF5 100%)"></div>
-            <div style="position:absolute;left:22px;top:52px;width:96px;height:30px;background:#fff;border-radius:999px;opacity:.9"></div>
-            <div style="position:absolute;left:40px;top:36px;width:40px;height:40px;background:#fff;border-radius:50%;opacity:.9"></div>
-            <div style="position:absolute;left:72px;top:44px;width:28px;height:28px;background:#fff;border-radius:50%;opacity:.9"></div>
-            <div style="position:absolute;right:26px;top:150px;width:70px;height:22px;background:#fff;border-radius:999px;opacity:.75"></div>
-            <div style="position:absolute;right:44px;top:138px;width:30px;height:30px;background:#fff;border-radius:50%;opacity:.75"></div>
-            <div style="position:absolute;right:30px;top:60px;width:22px;height:22px;background:#FFC93C;clip-path:polygon(50% 0,60% 40%,100% 50%,60% 60%,50% 100%,40% 60%,0 50%,40% 40%);animation:twk 3s ease-in-out infinite"></div>
-            <div style="position:absolute;left:150px;top:108px;width:13px;height:13px;background:#fff;clip-path:polygon(50% 0,60% 40%,100% 50%,60% 60%,50% 100%,40% 60%,0 50%,40% 40%);animation:twk 2.4s ease-in-out .6s infinite"></div>
-            <div style="position:absolute;right:120px;top:196px;width:11px;height:11px;background:#FF7FAE;clip-path:polygon(50% 0,60% 40%,100% 50%,60% 60%,50% 100%,40% 60%,0 50%,40% 40%);animation:twk 2.8s ease-in-out 1.1s infinite"></div>
-            <div style="position:absolute;left:-46px;top:430px;width:150px;height:150px;border-radius:50%;background:#FFE9C9;opacity:.55"></div>
-            <div style="position:absolute;right:-56px;top:690px;width:170px;height:170px;border-radius:50%;background:#D8F0E3;opacity:.6"></div>
-            <div style="position:absolute;left:26px;top:640px;width:12px;height:12px;background:#8FD9EE;clip-path:polygon(50% 0,60% 40%,100% 50%,60% 60%,50% 100%,40% 60%,0 50%,40% 40%);opacity:.9"></div>
-            <div style="position:absolute;right:34px;top:520px;width:10px;height:10px;border-radius:50%;background:#FFC93C;opacity:.9"></div>
-            <div style="position:absolute;left:0;right:0;bottom:0;height:66px;background:repeating-linear-gradient(90deg,#FFD9E4 0 26px,#FFFCF5 26px 52px);opacity:.5"></div>
+            <sc-if value="{{ bgSky }}" hint-placeholder-val="{{ true }}">
+              <div>
+                <div style="position:absolute;left:0;right:0;top:0;height:290px;background:linear-gradient(180deg,var(--bg1) 0%,var(--bg2) 62%,#FFFCF5 100%)"></div>
+                <div style="position:absolute;left:22px;top:52px;width:96px;height:30px;background:#fff;border-radius:999px;opacity:.9"></div>
+                <div style="position:absolute;left:40px;top:36px;width:40px;height:40px;background:#fff;border-radius:50%;opacity:.9"></div>
+                <div style="position:absolute;left:72px;top:44px;width:28px;height:28px;background:#fff;border-radius:50%;opacity:.9"></div>
+                <div style="position:absolute;right:26px;top:150px;width:70px;height:22px;background:#fff;border-radius:999px;opacity:.75"></div>
+                <div style="position:absolute;right:44px;top:138px;width:30px;height:30px;background:#fff;border-radius:50%;opacity:.75"></div>
+                <div style="position:absolute;right:30px;top:60px;width:22px;height:22px;background:var(--ac3);clip-path:polygon(50% 0,60% 40%,100% 50%,60% 60%,50% 100%,40% 60%,0 50%,40% 40%);animation:twk 3s ease-in-out infinite"></div>
+                <div style="position:absolute;left:150px;top:108px;width:13px;height:13px;background:#fff;clip-path:polygon(50% 0,60% 40%,100% 50%,60% 60%,50% 100%,40% 60%,0 50%,40% 40%);animation:twk 2.4s ease-in-out .6s infinite"></div>
+                <div style="position:absolute;right:120px;top:196px;width:11px;height:11px;background:var(--ac2);clip-path:polygon(50% 0,60% 40%,100% 50%,60% 60%,50% 100%,40% 60%,0 50%,40% 40%);animation:twk 2.8s ease-in-out 1.1s infinite"></div>
+                <div style="position:absolute;left:-46px;top:430px;width:150px;height:150px;border-radius:50%;background:var(--blob1);opacity:.55"></div>
+                <div style="position:absolute;right:-56px;top:690px;width:170px;height:170px;border-radius:50%;background:var(--blob2);opacity:.6"></div>
+                <div style="position:absolute;left:26px;top:640px;width:12px;height:12px;background:var(--sky);clip-path:polygon(50% 0,60% 40%,100% 50%,60% 60%,50% 100%,40% 60%,0 50%,40% 40%);opacity:.9"></div>
+                <div style="position:absolute;right:34px;top:520px;width:10px;height:10px;border-radius:50%;background:var(--ac3);opacity:.9"></div>
+                <div style="position:absolute;left:0;right:0;bottom:0;height:66px;background:repeating-linear-gradient(90deg,var(--stripe) 0 26px,#FFFCF5 26px 52px);opacity:.5"></div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ bgGrid }}" hint-placeholder-val="{{ false }}">
+              <div>
+                <div style="position:absolute;inset:0;background:repeating-linear-gradient(0deg,var(--gridline) 0 1px,transparent 1px 26px),repeating-linear-gradient(90deg,var(--gridline) 0 1px,transparent 1px 26px)"></div>
+                <div style="position:absolute;left:0;right:0;top:0;height:150px;background:linear-gradient(180deg,var(--warm) 0%,rgba(255,252,245,0) 100%)"></div>
+                <div style="position:absolute;right:-40px;top:200px;width:150px;height:150px;border-radius:50%;background:var(--blob1);opacity:.5"></div>
+                <div style="position:absolute;left:-44px;top:540px;width:160px;height:160px;border-radius:50%;background:var(--blob2);opacity:.55"></div>
+                <div style="position:absolute;left:30px;top:150px;width:16px;height:16px;background:var(--ac3);clip-path:polygon(50% 0,60% 40%,100% 50%,60% 60%,50% 100%,40% 60%,0 50%,40% 40%);animation:twk 3.2s ease-in-out infinite"></div>
+                <div style="position:absolute;right:56px;top:470px;width:12px;height:12px;background:var(--ac2);clip-path:polygon(50% 0,60% 40%,100% 50%,60% 60%,50% 100%,40% 60%,0 50%,40% 40%);animation:twk 2.6s ease-in-out .7s infinite"></div>
+                <div style="position:absolute;left:0;right:0;bottom:0;height:16px;background:repeating-conic-gradient(var(--ac3) 0 25%,#FFFCF5 0 50%) 0 0/16px 16px;opacity:.7"></div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ bgDots }}" hint-placeholder-val="{{ false }}">
+              <div>
+                <div style="position:absolute;inset:0;background:radial-gradient(circle at 9px 9px,var(--dotA) 3.6px,transparent 4.2px) 0 0/36px 36px,radial-gradient(circle at 9px 9px,var(--dotB) 3.6px,transparent 4.2px) 18px 18px/36px 36px"></div>
+                <div style="position:absolute;left:-52px;top:60px;width:172px;height:172px;border-radius:50%;background:var(--blob1);opacity:.55"></div>
+                <div style="position:absolute;right:-60px;top:400px;width:190px;height:190px;border-radius:50%;background:var(--blob3);opacity:.5"></div>
+                <div style="position:absolute;left:40px;top:700px;width:140px;height:140px;border-radius:50%;background:var(--blob2);opacity:.5"></div>
+                <div style="position:absolute;left:0;right:0;bottom:0;height:80px;background:linear-gradient(180deg,rgba(255,252,245,0) 0%,var(--warm) 100%)"></div>
+              </div>
+            </sc-if>
           </div>
 
           <div style="position:relative;z-index:1">
             <div style="height:30px"></div>
             <div style="padding:6px 22px 0;display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
               <div style="min-width:0">
-                <div style="font-family:'Jua',sans-serif;font-size:29px;color:#FF5B3E;line-height:1.1;letter-spacing:-.5px">둘째의 오늘</div>
-                <div style="font-size:12.5px;color:#5E93A8;margin-top:5px;letter-spacing:2px">9월 4일 금요일</div>
+                <div style="font-family:var(--fh);font-size:29px;color:var(--ac);line-height:1.1;letter-spacing:-.5px">둘째의 오늘</div>
+                <div style="font-size:12.5px;color:var(--sub);margin-top:5px;letter-spacing:2px">9월 4일 금요일</div>
               </div>
-              <div style="display:flex;align-items:center;gap:6px;background:#FF5B3E;border-radius:999px;padding:8px 13px;flex:none;box-shadow:0 4px 10px rgba(255,91,62,.3)">
-                <span style="width:12px;height:12px;background:#FFC93C;clip-path:polygon(50% 0,60% 40%,100% 50%,60% 60%,50% 100%,40% 60%,0 50%,40% 40%);flex:none"></span>
-                <span style="font-family:'Jua',sans-serif;font-size:15px;color:#fff;white-space:nowrap;flex:none">{{ streak }}일 연속</span>
+              <div style="display:flex;align-items:center;gap:6px;background:var(--ac);border-radius:999px;padding:8px 13px;flex:none;box-shadow:0 4px 10px rgba(255,91,62,.3)">
+                <span style="width:12px;height:12px;background:var(--ac3);clip-path:polygon(50% 0,60% 40%,100% 50%,60% 60%,50% 100%,40% 60%,0 50%,40% 40%);flex:none"></span>
+                <span style="font-family:var(--fh);font-size:15px;color:#fff;white-space:nowrap;flex:none">{{ streak }}일 연속</span>
               </div>
             </div>
 
@@ -77,25 +107,25 @@ a{color:#FF5B3E}a:hover{color:#d9401f}
               </div>
               <div style="position:relative;width:104px;height:104px;flex:none">
                 <svg width="104" height="104" viewBox="0 0 104 104">
-                  <circle cx="52" cy="52" r="43" fill="none" stroke="#FFE4D9" stroke-width="13"></circle>
-                  <circle cx="52" cy="52" r="43" fill="none" stroke="#FF5B3E" stroke-width="13" stroke-linecap="round" stroke-dasharray="270.2" stroke-dashoffset="{{ ring }}" transform="rotate(-90 52 52)" style="transition:stroke-dashoffset .55s cubic-bezier(.3,1.5,.4,1)"></circle>
+                  <circle cx="52" cy="52" r="43" fill="none" stroke="var(--track)" stroke-width="13"></circle>
+                  <circle cx="52" cy="52" r="43" fill="none" stroke="var(--ac)" stroke-width="13" stroke-linecap="round" stroke-dasharray="270.2" stroke-dashoffset="{{ ring }}" transform="rotate(-90 52 52)" style="transition:stroke-dashoffset .55s cubic-bezier(.3,1.5,.4,1)"></circle>
                 </svg>
                 <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center">
-                  <span style="font-family:'Jua',sans-serif;font-size:26px;color:#FF5B3E;line-height:1">{{ pct }}%</span>
+                  <span style="font-family:var(--fh);font-size:26px;color:var(--ac);line-height:1">{{ pct }}%</span>
                   <span style="font-size:11.5px;color:#B79A90">{{ count }}</span>
                 </div>
               </div>
               <div style="min-width:0">
-                <div style="font-family:'Jua',sans-serif;font-size:18px;color:#2F2A33;line-height:1.35">{{ headline }}</div>
+                <div style="font-family:var(--fh);font-size:18px;color:#2F2A33;line-height:1.35">{{ headline }}</div>
                 <div style="font-size:12.5px;color:#8C8290;line-height:1.55;margin-top:6px">{{ sub }}</div>
               </div>
             </div>
 
-            <div style="margin:20px 0 0;height:14px;background:repeating-conic-gradient(#FF7FAE 0 25%,#FFFCF5 0 50%) 0 0/14px 14px;opacity:.85"></div>
+            <div style="margin:20px 0 0;height:14px;background:repeating-conic-gradient(var(--ac2) 0 25%,#FFFCF5 0 50%) 0 0/14px 14px;opacity:.85"></div>
 
             <div style="margin:18px 18px 0">
               <div style="display:flex;align-items:center;justify-content:space-between;margin:0 4px 10px">
-                <span style="font-family:'Jua',sans-serif;font-size:16px;color:#2F2A33">할 일</span>
+                <span style="font-family:var(--fh);font-size:16px;color:#2F2A33">할 일</span>
                 <span style="font-size:11.5px;color:#9E93A6">누르면 스티커가 찰칵!</span>
               </div>
               <div style="display:flex;flex-direction:column;gap:10px">
@@ -110,7 +140,17 @@ a{color:#FF5B3E}a:hover{color:#d9401f}
                         </div>
                       </sc-if>
                       <sc-if value="{{ t.undone }}" hint-placeholder-val="{{ false }}">
-                        <div style="width:30px;height:30px;border-radius:50%;border:2.5px dashed #E3B9C9"></div>
+                        <div style="width:30px;height:30px;border-radius:50%;border:2.5px dashed var(--dash)"></div>
+                      </sc-if>
+                      <sc-if value="{{ t.burst }}" hint-placeholder-val="{{ false }}">
+                        <div style="position:absolute;left:50%;top:50%;width:0;height:0;pointer-events:none">
+                          <div style="position:absolute;left:-19px;top:-19px;width:38px;height:38px;border-radius:50%;border:3px solid var(--ac);animation:shockwave .55s ease-out forwards"></div>
+                          <sc-for list="{{ t.bits }}" as="b" hint-placeholder-count="10">
+                            <div style="position:absolute;left:0;top:0;width:0;height:0;transform:rotate({{ b.a }}deg)">
+                              <span style="position:absolute;left:{{ b.half }}px;top:0;width:{{ b.s }}px;height:{{ b.s }}px;display:block;background:{{ b.c }};border-radius:{{ b.r }};clip-path:{{ b.clip }};animation:shoot .6s cubic-bezier(.2,.8,.3,1) {{ b.d }}s forwards"></span>
+                            </div>
+                          </sc-for>
+                        </div>
                       </sc-if>
                     </div>
                     <div style="min-width:0;flex:1">
@@ -125,7 +165,7 @@ a{color:#FF5B3E}a:hover{color:#d9401f}
                       </div>
                     </div>
                     <sc-if value="{{ t.done }}" hint-placeholder-val="{{ true }}">
-                      <span style="font-family:'Jua',sans-serif;font-size:13px;color:#fff;background:#FF5B3E;border-radius:999px;padding:5px 11px;flex:none;animation:stamp .4s ease both">+1</span>
+                      <span style="font-family:var(--fh);font-size:13px;color:#fff;background:var(--ac);border-radius:999px;padding:5px 11px;flex:none;animation:stamp .4s ease both">+1</span>
                     </sc-if>
                   </div>
                 </sc-for>
@@ -134,7 +174,7 @@ a{color:#FF5B3E}a:hover{color:#d9401f}
 
             <div style="margin:20px 18px 0;background:#fff;border-radius:28px;padding:20px;box-shadow:0 6px 20px rgba(47,42,51,.1)">
               <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px">
-                <span style="font-family:'Jua',sans-serif;font-size:16px;color:#2F2A33">스티커 판</span>
+                <span style="font-family:var(--fh);font-size:16px;color:#2F2A33">스티커 판</span>
                 <span style="font-size:11.5px;color:#9E93A6">{{ stickerLabel }}</span>
               </div>
               <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
@@ -153,7 +193,45 @@ a{color:#FF5B3E}a:hover{color:#d9401f}
               <div style="margin-top:14px;font-size:12.5px;color:#8C8290;line-height:1.55">여덟 칸을 다 채우면 엄마와 약속한 상을 받아요.</div>
             </div>
 
-            <div style="margin:22px 0 0;text-align:center;font-size:13px;color:#5E93A8;letter-spacing:5px">오늘도 좋아</div>
+            <div style="margin:20px 18px 0;background:#fff;border-radius:28px;padding:20px;box-shadow:0 6px 20px rgba(47,42,51,.1)">
+              <div style="display:flex;align-items:baseline;justify-content:space-between">
+                <span style="font-family:var(--fh);font-size:16px;color:#2F2A33">설정</span>
+                <span style="font-size:11.5px;color:#9E93A6">내 화면 꾸미기</span>
+              </div>
+              <div style="font-size:12px;color:#8C8290;margin:14px 0 8px">테마</div>
+              <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">
+                <sc-for list="{{ themeChips }}" as="c" hint-placeholder-count="5">
+                  <div onClick="{{ c.onPick }}" style="border-radius:16px;border:2px solid {{ c.bd }};background:{{ c.bg }};padding:8px 6px;cursor:pointer;text-align:center;min-height:44px;box-sizing:border-box">
+                    <div style="display:flex;gap:3px;justify-content:center">
+                      <span style="width:12px;height:22px;border-radius:4px;background:{{ c.s1 }}"></span>
+                      <span style="width:12px;height:22px;border-radius:4px;background:{{ c.s2 }}"></span>
+                      <span style="width:12px;height:22px;border-radius:4px;background:{{ c.s3 }}"></span>
+                    </div>
+                    <div style="font-size:10.5px;color:{{ c.fg }};margin-top:6px;line-height:1.25">{{ c.label }}</div>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="font-size:12px;color:#8C8290;margin:16px 0 8px">배경화면</div>
+              <div style="display:flex;gap:8px">
+                <sc-for list="{{ bgChips }}" as="c" hint-placeholder-count="3">
+                  <div onClick="{{ c.onPick }}" style="flex:1;border-radius:16px;border:2px solid {{ c.bd }};background:{{ c.bg }};padding:8px 6px;cursor:pointer;text-align:center;min-height:44px;box-sizing:border-box">
+                    <div style="height:34px;border-radius:10px;background:{{ c.swatch }};background-size:{{ c.swatchSize }}"></div>
+                    <div style="font-size:11px;color:{{ c.fg }};margin-top:6px">{{ c.label }}</div>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="font-size:12px;color:#8C8290;margin:16px 0 8px">글꼴</div>
+              <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">
+                <sc-for list="{{ fontChips }}" as="c" hint-placeholder-count="5">
+                  <div onClick="{{ c.onPick }}" style="flex:1;border-radius:16px;border:2px solid {{ c.bd }};background:{{ c.bg }};padding:11px 6px;cursor:pointer;text-align:center;min-height:44px;box-sizing:border-box">
+                    <div style="font-family:{{ c.head }};font-size:19px;color:{{ c.ink }};line-height:1.2">가나다</div>
+                    <div style="font-size:11px;color:{{ c.fg }};margin-top:5px">{{ c.label }}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+
+            <div style="margin:22px 0 0;text-align:center;font-size:13px;color:var(--sub);letter-spacing:5px">오늘도 좋아</div>
             <div style="height:44px"></div>
           </div>
         </div>
@@ -168,9 +246,9 @@ a{color:#FF5B3E}a:hover{color:#d9401f}
                 <div style="position:absolute;left:{{ p.l }}%;top:{{ p.t }}%;width:{{ p.w }}%;height:{{ p.h }}%;background:{{ p.bg }};border-radius:{{ p.r }};clip-path:{{ p.c }};transform:rotate({{ p.rot }}deg)"></div>
               </sc-for>
             </div>
-            <div style="font-family:'Jua',sans-serif;font-size:27px;color:#FF5B3E;margin-top:12px">오늘 다 했어요!</div>
+            <div style="font-family:var(--fh);font-size:27px;color:var(--ac);margin-top:12px">오늘 다 했어요!</div>
             <div style="font-size:13.5px;color:#8C8290;line-height:1.65;margin-top:9px">{{ hero.name }} 스티커를 받았어요.<br>{{ streak }}일 연속 달성 중이에요.</div>
-            <div onClick="{{ onCloseCeleb }}" style="margin-top:20px;background:#FF5B3E;color:#fff;font-family:'Jua',sans-serif;font-size:17px;border-radius:999px;padding:15px;cursor:pointer;min-height:44px;box-sizing:border-box">스티커 받기</div>
+            <div onClick="{{ onCloseCeleb }}" style="margin-top:20px;background:var(--ac);color:#fff;font-family:var(--fh);font-size:17px;border-radius:999px;padding:15px;cursor:pointer;min-height:44px;box-sizing:border-box">스티커 받기</div>
           </div>
         </div>
       </sc-if>
@@ -179,24 +257,24 @@ a{color:#FF5B3E}a:hover{color:#d9401f}
 
   <div style="width:430px;background:#fff;border-radius:24px;padding:22px 24px;box-shadow:0 6px 20px rgba(47,42,51,.08)">
     <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px">
-      <div style="font-family:'Jua',sans-serif;font-size:19px;color:#2F2A33">스티커 골라 담기</div>
-      <div style="font-size:12px;color:#FF5B3E;background:#FFEFEA;border-radius:999px;padding:5px 11px;white-space:nowrap">{{ pickedLabel }}</div>
+      <div style="font-family:var(--fh);font-size:19px;color:#2F2A33">스티커 골라 담기</div>
+      <div style="font-size:12px;color:var(--ac);background:#FFEFEA;border-radius:999px;padding:5px 11px;white-space:nowrap">{{ pickedLabel }}</div>
     </div>
     <div style="font-size:12.5px;color:#8C8290;line-height:1.6;margin-top:6px">누르면 담기고, 다시 누르면 빠집니다. 담은 것만 스티커 판과 완료 도장에 쓰입니다.</div>
     <div style="display:flex;gap:8px;margin-top:12px">
-      <div onClick="{{ onPickAll }}" style="font-size:12.5px;color:#5E93A8;background:#EFF9FC;border-radius:999px;padding:9px 14px;cursor:pointer">전부 담기</div>
+      <div onClick="{{ onPickAll }}" style="font-size:12.5px;color:var(--sub);background:#EFF9FC;border-radius:999px;padding:9px 14px;cursor:pointer">전부 담기</div>
       <div onClick="{{ onPickNone }}" style="font-size:12.5px;color:#8C8290;background:#F5F2ED;border-radius:999px;padding:9px 14px;cursor:pointer">비우기</div>
       <div onClick="{{ onPickCute }}" style="font-size:12.5px;color:#C24C77;background:#FFEDF3;border-radius:999px;padding:9px 14px;cursor:pointer">추천 8종</div>
     </div>
 
     <sc-for list="{{ groups }}" as="g" hint-placeholder-count="4">
       <div style="margin-top:20px">
-        <div style="font-family:'Jua',sans-serif;font-size:14px;color:#2F2A33;margin-bottom:10px">{{ g.name }}</div>
+        <div style="font-family:var(--fh);font-size:14px;color:#2F2A33;margin-bottom:10px">{{ g.name }}</div>
         <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:9px">
           <sc-for list="{{ g.items }}" as="s" hint-placeholder-count="5">
             <div onClick="{{ s.onToggle }}" style="border-radius:18px;padding:9px 4px 8px;text-align:center;cursor:pointer;background:{{ s.cardBg }};border:2px solid {{ s.cardBorder }};transition:all .2s ease;position:relative;min-height:44px">
               <sc-if value="{{ s.on }}" hint-placeholder-val="{{ true }}">
-                <div style="position:absolute;right:5px;top:5px;width:15px;height:15px;border-radius:50%;background:#FF5B3E;color:#fff;font-size:9px;line-height:15px">✓</div>
+                <div style="position:absolute;right:5px;top:5px;width:15px;height:15px;border-radius:50%;background:var(--ac);color:#fff;font-size:9px;line-height:15px">✓</div>
               </sc-if>
               <div style="position:relative;width:46px;height:46px;margin:0 auto;opacity:{{ s.op }}">
                 <sc-for list="{{ s.parts }}" as="p" hint-placeholder-count="4">
@@ -210,20 +288,20 @@ a{color:#FF5B3E}a:hover{color:#d9401f}
       </div>
     </sc-for>
 
-    <div style="font-family:'Jua',sans-serif;font-size:15px;color:#2F2A33;margin-top:22px">카테고리 아이콘</div>
+    <div style="font-family:var(--fh);font-size:15px;color:#2F2A33;margin-top:22px">카테고리 아이콘</div>
     <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">
       <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#C24C77;background:#FFEDF3;border-radius:999px;padding:7px 12px 7px 10px"><span style="width:9px;height:9px;background:#C24C77;border-radius:50%"></span>숙제</span>
       <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#C25A2E;background:#FFF0E6;border-radius:999px;padding:7px 12px 7px 10px"><span style="width:10px;height:10px;background:#C25A2E;clip-path:polygon(50% 0,100% 100%,0 100%)"></span>개인스케줄</span>
       <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#2E7FA0;background:#EAF7FC;border-radius:999px;padding:7px 12px 7px 10px"><span style="width:9px;height:9px;background:#2E7FA0;border-radius:2px"></span>공부</span>
     </div>
 
-    <div style="font-family:'Jua',sans-serif;font-size:15px;color:#2F2A33;margin-top:22px">배색</div>
-    <div style="display:flex;gap:7px;margin-top:10px">
-      <div style="flex:1;height:42px;border-radius:12px;background:#FF5B3E"></div>
-      <div style="flex:1;height:42px;border-radius:12px;background:#FF7FAE"></div>
-      <div style="flex:1;height:42px;border-radius:12px;background:#FFC93C"></div>
-      <div style="flex:1;height:42px;border-radius:12px;background:#8FD9EE"></div>
-      <div style="flex:1;height:42px;border-radius:12px;background:#3FA86B"></div>
+    <div style="font-family:var(--fh);font-size:15px;color:#2F2A33;margin-top:22px">배색</div>
+    <div style="display:flex;gap:7px;margin-top:10px;flex-wrap:wrap">
+      <div style="flex:1;height:42px;border-radius:12px;background:var(--ac)"></div>
+      <div style="flex:1;height:42px;border-radius:12px;background:var(--ac2)"></div>
+      <div style="flex:1;height:42px;border-radius:12px;background:var(--ac3)"></div>
+      <div style="flex:1;height:42px;border-radius:12px;background:var(--sky)"></div>
+      <div style="flex:1;height:42px;border-radius:12px;background:var(--grn)"></div>
       <div style="flex:1;height:42px;border-radius:12px;background:#B9A7F0"></div>
       <div style="flex:1;height:42px;border-radius:12px;background:#FFFCF5;border:1px solid #EDE6DA"></div>
     </div>
@@ -234,6 +312,41 @@ a{color:#FF5B3E}a:hover{color:#d9401f}
 <script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1300,&quot;height&quot;:1000},&quot;stickerGoal&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:8,&quot;min&quot;:4,&quot;max&quot;:12,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;보상&quot;},&quot;vibrate&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;효과&quot;}}">
 const S = "polygon(50% 0,60% 40%,100% 50%,60% 60%,50% 100%,40% 60%,0 50%,40% 40%)";
 const LEAF = "50% 20% 50% 20%";
+const TRI = "polygon(50% 0,100% 100%,0 100%)";
+/** 큰 눈 두 개 + 반짝임. 어떤 스티커든 얼굴을 붙일 수 있다. */
+const EYES = (lx, rx, y, w, h, c) => [
+  P(lx, y, w, h, c || "#2F2A33", "50%"), P(rx, y, w, h, c || "#2F2A33", "50%"),
+  P(lx + w * 0.24, y + h * 0.16, w * 0.36, h * 0.3, "#FFFFFF", "50%"),
+  P(rx + w * 0.24, y + h * 0.16, w * 0.36, h * 0.3, "#FFFFFF", "50%")
+];
+const BLUSH = (lx, rx, y, w, h, c) => [
+  P(lx, y, w, h, c || "#FFB3C7", "50%"), P(rx, y, w, h, c || "#FFB3C7", "50%")
+];
+
+/** 담벼락 위로 빼꼼 내민 고양이. 동글한 귀 + 굵은 외곽선 + 점 눈 + 작은 입. */
+const INK = "#3A332E";
+const EAR_L = "16% 50% 50% 50%";   // 45도 돌리면 위로 살짝 둥근 삼각
+const EAR_R = "50% 16% 50% 50%";
+const CATF = (o) => {
+  const ink = o.ink || INK;
+  const inner = o.inner || "#F6C3C0";
+  const earL = o.ear || o.fur, earR = o.ear2 || o.ear || o.fur;
+  const ears = o.flatEars
+    ? [P(12, 23, 24, 17, earL, "50% 50% 44% 44%"), P(64, 23, 24, 17, earR, "50% 50% 44% 44%")]
+    : [P(11, 10, 27, 27, earL, EAR_L, null, 45), P(62, 10, 27, 27, earR, EAR_R, null, -45),
+       P(19, 18, 12, 12, inner, EAR_L, null, 45), P(70, 18, 12, 12, inner, EAR_R, null, -45)];
+  const fluff = o.fluff ? [P(-1, 42, 20, 24, o.fur, "50%"), P(81, 42, 20, 24, o.fur, "50%")] : [];
+  const eye = o.eye || ink;
+  return [].concat(ears, fluff,
+    [P(8, 19, 84, 76, ink, "50%"), P(11, 22, 78, 70, o.fur, "50%")],
+    o.marks || [],
+    o.blush ? BLUSH(18, 65, 62, 17, 9, o.blush) : [],
+    [P(28, 47, 13, 16, eye, "50%"), P(59, 47, 13, 16, eye, "50%"),
+     P(31, 50, 5, 5, "#FFFFFF", "50%"), P(62, 50, 5, 5, "#FFFFFF", "50%"),
+     P(45, 68, 10, 7, o.nose || "#E58A93", "40% 40% 60% 60%")],
+    [P(15, 86, 20, 16, o.paw || o.fur, "999px 999px 8px 8px"),
+     P(65, 86, 20, 16, o.paw || o.fur, "999px 999px 8px 8px")]);
+};
 const P = (l, t, w, h, bg, r, c, rot) => ({ l, t, w, h, bg, r: r || "0", c: c || "none", rot: rot || 0 });
 
 const STICKERS = [
@@ -321,10 +434,188 @@ const STICKERS = [
     P(34, 56, 11, 32, "#FFA3C6", "4px", null, 12), P(55, 56, 11, 32, "#FFA3C6", "4px", null, -12)] },
   { id: "balloon", name: "풍선", group: "하늘 · 마음", parts: [
     P(22, 6, 56, 62, "#FF5B3E", "50%/45% 45% 55% 55%"), P(45, 64, 10, 10, "#FF5B3E", "3px"),
-    P(48, 72, 4, 26, "#B79A90", "2px"), P(34, 20, 12, 8, "#FF8E7A", "999px", null, -25)] }
+    P(48, 72, 4, 26, "#B79A90", "2px"), P(34, 20, 12, 8, "#FF8E7A", "999px", null, -25)] },
+
+  { id: "potato", name: "감자", group: "채소 · 간식", parts: [].concat([
+    P(8, 26, 84, 52, "#D9A96B", "50%", null, -10),
+    P(22, 34, 8, 8, "#B5854A", "50%"), P(70, 44, 7, 7, "#B5854A", "50%")],
+    EYES(30, 58, 42, 13, 15), BLUSH(20, 66, 60, 14, 8, "#E8A88C"),
+    [P(45, 60, 10, 6, "#B5854A", "0 0 999px 999px")]) },
+  { id: "tomato", name: "토마토", group: "채소 · 간식", parts: [].concat([
+    P(14, 26, 72, 66, "#FF4B3E", "50%"),
+    P(32, 12, 36, 20, "#3FA86B", "50% 20% 50% 20%"), P(47, 6, 6, 14, "#3FA86B", "3px")],
+    EYES(29, 57, 44, 14, 16), BLUSH(19, 67, 64, 15, 8, "#FF8F80"),
+    [P(45, 64, 10, 6, "#B03328", "0 0 999px 999px")]) },
+  { id: "carrot", name: "당근", group: "채소 · 간식", parts: [].concat([
+    P(24, 28, 52, 66, "#FF8A3C", "0", "polygon(0 0,100% 0,50% 100%)"),
+    P(36, 62, 28, 5, "#E8712A", "3px"), P(42, 76, 16, 5, "#E8712A", "3px"),
+    P(24, 2, 18, 28, "#3FA86B", "50% 20% 50% 20%", null, -22),
+    P(42, 0, 18, 28, "#5FBF84", "50% 20% 50% 20%"),
+    P(58, 2, 18, 28, "#3FA86B", "50% 20% 50% 20%", null, 22)],
+    EYES(32, 54, 40, 12, 14), BLUSH(24, 62, 55, 12, 7, "#FFB08A")) },
+  { id: "corn", name: "옥수수", group: "채소 · 간식", parts: [].concat([
+    P(8, 38, 26, 50, "#5FBF84", "50% 10% 50% 10%", null, -12),
+    P(66, 38, 26, 50, "#5FBF84", "10% 50% 10% 50%", null, 12),
+    P(28, 12, 44, 78, "#FFC93C", "50% 50% 40% 40%/36% 36% 50% 50%"),
+    P(34, 22, 4, 12, "#F0AE2E", "3px"), P(62, 22, 4, 12, "#F0AE2E", "3px")],
+    EYES(32, 56, 42, 13, 15), BLUSH(24, 64, 62, 13, 7, "#F5A66A"),
+    [P(45, 62, 10, 6, "#D9891E", "0 0 999px 999px")]) },
+  { id: "eggfry", name: "달걀후라이", group: "채소 · 간식", parts: [].concat([
+    P(4, 18, 92, 66, "#FFF1D8", "48% 56% 44% 52%/52% 44% 56% 48%"),
+    P(30, 32, 40, 40, "#FFC93C", "50%")],
+    EYES(37, 53, 42, 11, 13), BLUSH(31, 61, 58, 9, 6, "#F5A66A")) },
+  { id: "broccoli", name: "브로콜리", group: "채소 · 간식", parts: [].concat([
+    P(40, 56, 20, 40, "#BFD8A0", "6px 6px 10px 10px"),
+    P(10, 18, 34, 32, "#3E8E52", "50%"), P(34, 8, 32, 32, "#4A9E5C", "50%"), P(56, 18, 34, 32, "#3E8E52", "50%"),
+    P(20, 34, 30, 28, "#4A9E5C", "50%"), P(50, 34, 30, 28, "#57A868", "50%")],
+    EYES(31, 55, 38, 13, 15), BLUSH(22, 64, 56, 13, 7, "#8FBF84")) },
+  { id: "eggplant", name: "가지", group: "채소 · 간식", parts: [].concat([
+    P(22, 26, 56, 66, "#7B5AA8", "50% 50% 46% 46%/38% 38% 62% 62%"),
+    P(30, 36, 13, 8, "#9B7CC4", "999px", null, -20),
+    P(28, 10, 44, 22, "#4E8E56", "50% 20% 50% 20%"), P(46, 4, 8, 14, "#3E7A46", "3px")],
+    EYES(30, 56, 48, 14, 16, "#FFF6EA"),
+    [P(34, 52, 7, 8, "#3A2E3F", "50%"), P(60, 52, 7, 8, "#3A2E3F", "50%")],
+    BLUSH(21, 67, 68, 13, 7, "#B884C4")) },
+  { id: "pea", name: "완두콩", group: "채소 · 간식", parts: [].concat([
+    P(4, 32, 92, 44, "#4FAF72", "999px", null, -6),
+    P(14, 38, 24, 24, "#7FD09A", "50%"), P(38, 34, 24, 24, "#8FD9A6", "50%"), P(62, 38, 24, 24, "#7FD09A", "50%")],
+    EYES(43, 53, 42, 8, 10),
+    BLUSH(38, 58, 52, 7, 5, "#9FE0B0")) },
+  { id: "banana", name: "바나나", group: "과일", parts: [
+    P(14, 12, 70, 70, "radial-gradient(circle at 24% 24%,transparent 0 55%,#FFC93C 55.5% 100%)", "50%", null, 24),
+    P(20, 66, 15, 13, "#8A5A3B", "3px", null, 24), P(70, 16, 13, 12, "#8A5A3B", "3px", null, 24)] },
+  { id: "macaron", name: "마카롱", group: "디저트", parts: [
+    P(12, 20, 76, 32, "#FFA3C6", "999px 999px 8px 8px"),
+    P(14, 47, 72, 13, "#FFE08A", "3px"),
+    P(12, 56, 76, 30, "#FF7FAE", "8px 8px 999px 999px")] },
+  { id: "pudding", name: "푸딩", group: "디저트", parts: [
+    P(26, 14, 48, 16, "#C98A3C", "999px 999px 4px 4px"),
+    P(16, 26, 68, 54, "#FFD98A", "6px 6px 42% 42%"),
+    P(30, 34, 18, 8, "#FFEFC4", "999px", null, -14),
+    P(8, 78, 84, 11, "#FFF1D8", "999px")] },
+
+  { id: "pencil", name: "연필", group: "사물", parts: [
+    P(33, 4, 34, 14, "#FF7FAE", "6px 6px 2px 2px"), P(31, 17, 38, 10, "#8FD9EE", "2px"),
+    P(31, 26, 38, 54, "#FFC93C", "2px"), P(44, 26, 6, 54, "#F0AE2E", "0"),
+    P(31, 79, 38, 15, "#E8B98A", "0", "polygon(0 0,100% 0,50% 100%)"),
+    P(44, 88, 12, 8, "#4A3A2C", "0", "polygon(0 0,100% 0,50% 100%)")] },
+  { id: "eraser", name: "지우개", group: "사물", parts: [
+    P(12, 30, 76, 42, "#FF9FBE", "7px"), P(12, 44, 76, 15, "#FFF6EA", "0"),
+    P(12, 59, 76, 13, "#F586A9", "0 0 7px 7px"),
+    P(20, 34, 20, 6, "#FFC2D4", "999px")] },
+  { id: "book", name: "공책", group: "사물", parts: [
+    P(18, 12, 64, 74, "#5B8DEF", "4px 9px 9px 4px"),
+    P(28, 17, 52, 64, "#FFF6EA", "2px 7px 7px 2px"),
+    P(36, 30, 34, 5, "#C9D8F5", "3px"), P(36, 44, 34, 5, "#C9D8F5", "3px"), P(36, 58, 24, 5, "#C9D8F5", "3px"),
+    P(19, 22, 11, 8, "#FFC93C", "3px"), P(19, 44, 11, 8, "#FFC93C", "3px"), P(19, 66, 11, 8, "#FFC93C", "3px")] },
+  { id: "clock", name: "시계", group: "사물", parts: [
+    P(44, 2, 12, 11, "#6EC7E4", "4px"),
+    P(9, 12, 82, 82, "#8FD9EE", "50%"), P(18, 20, 64, 66, "#FFF6EA", "50%"),
+    P(47, 32, 6, 24, "#2F2A33", "3px"), P(50, 50, 22, 6, "#2F2A33", "3px")] },
+  { id: "umbrella", name: "우산", group: "사물", parts: [
+    P(6, 20, 88, 42, "#FF5B3E", "999px 999px 0 0"),
+    P(36, 20, 28, 42, "#FF8073", "999px 999px 0 0"),
+    P(47, 58, 6, 30, "#8A5A3B", "3px"),
+    P(33, 80, 20, 11, "#8A5A3B", "0 0 999px 999px"),
+    P(45, 12, 10, 10, "#FFC93C", "50%")] },
+  { id: "mug", name: "머그컵", group: "사물", parts: [
+    P(18, 30, 48, 58, "#8FD9EE", "7px 7px 42% 42%"),
+    P(60, 40, 30, 30, "radial-gradient(circle at 50% 50%,transparent 0 38%,#6EC7E4 38.5% 100%)", "50%"),
+    P(22, 34, 40, 11, "#6B4A2F", "3px"),
+    P(28, 8, 6, 18, "#DCE7EC", "3px", null, -16), P(44, 4, 6, 20, "#DCE7EC", "3px", null, 12)] },
+  { id: "cheese", name: "치즈태비", group: "고양이", parts: CATF({
+    fur: "#F5AF5C", ear: "#EC9C42", blush: "#F08A72",
+    marks: [P(29, 22, 7, 13, "#D97E28", "999px"), P(46, 20, 7, 15, "#D97E28", "999px"), P(63, 22, 7, 13, "#D97E28", "999px")] }) },
+  { id: "calico", name: "삼색이", group: "고양이", parts: CATF({
+    fur: "#FFF7EE", ear: "#F2A54E", ear2: "#5B534E", paw: "#FFF7EE",
+    marks: [P(11, 22, 30, 26, "#F2A54E", "50%"), P(60, 24, 28, 24, "#6B625C", "50%")] }) },
+  { id: "tuxedo", name: "턱시도", group: "고양이", parts: CATF({
+    fur: "#4A423C", inner: "#C99B95", eye: "#FFE08A", paw: "#FFF7EE",
+    marks: [P(24, 56, 52, 40, "#FFF7EE", "50%")] }) },
+  { id: "russian", name: "러시안블루", group: "고양이", parts: CATF({
+    fur: "#9FB4C2", ear: "#8AA0B0", inner: "#DDBFC2", eye: "#4E9E42", nose: "#C79BA2",
+    marks: [P(22, 26, 17, 9, "#B8C9D4", "999px", null, -14)] }) },
+  { id: "siamese", name: "샴", group: "고양이", parts: CATF({
+    fur: "#F5E7D2", ear: "#6B5445", inner: "#C7A08C", eye: "#5B8DEF", nose: "#8A7060", paw: "#F5E7D2",
+    marks: [P(24, 56, 52, 40, "#8A7060", "50%")] }) },
+  { id: "persian", name: "페르시안", group: "고양이", parts: CATF({
+    fur: "#F7EBD6", fluff: true, eye: "#D9822B", nose: "#DE9AA2", blush: "#F2BDB2",
+    ear: "#EBD9BC" }) },
+  { id: "scottish", name: "스코티시폴드", group: "고양이", parts: CATF({
+    fur: "#C2BCB4", flatEars: true, ear: "#ADA79F", eye: "#D99A2B", nose: "#DFA3A8",
+    marks: [P(29, 24, 7, 11, "#A39C94", "999px"), P(64, 24, 7, 11, "#A39C94", "999px")] }) },
+  { id: "ragdoll", name: "랙돌", group: "고양이", parts: CATF({
+    fur: "#FFF7EE", ear: "#C7A794", fluff: true, eye: "#5B8DEF", nose: "#E3A8B4", blush: "#F7C3C6",
+    marks: [P(26, 56, 48, 38, "#F0DFCC", "50%")] }) },
+  { id: "bengal", name: "벵갈", group: "고양이", parts: CATF({
+    fur: "#EDBB68", ear: "#CE9243", nose: "#D9848C",
+    marks: [P(17, 26, 12, 10, "#8A5A2E", "50%"), P(71, 28, 12, 10, "#8A5A2E", "50%"),
+      P(34, 20, 11, 9, "#8A5A2E", "50%"), P(55, 20, 11, 9, "#8A5A2E", "50%")] }) },
+  { id: "munchkin", name: "먼치킨", group: "고양이", parts: CATF({
+    fur: "#EDE2CE", ear: "#DBCBB2", nose: "#E3A0AC", blush: "#F2B4BC",
+    marks: [P(23, 26, 9, 9, "#D6C8AE", "50%"), P(68, 26, 9, 9, "#D6C8AE", "50%")] }) },
+
+  { id: "sock", name: "양말", group: "사물", parts: [
+    P(32, 8, 34, 12, "#FFC93C", "4px"),
+    P(34, 19, 30, 46, "#FF7FAE", "4px 4px 0 0"),
+    P(12, 58, 52, 30, "#FF7FAE", "999px 6px 12px 999px"),
+    P(12, 66, 52, 8, "#FFA3C6", "0")] }
 ];
 
 const CUTE8 = ["berry", "star", "cherry", "tulip", "rainbow", "heart", "icecream", "clover"];
+const BIT_COLORS = ["#FF5B3E", "#FF7FAE", "#FFC93C", "#8FD9EE", "#3FA86B", "#B9A7F0"];
+const BITS = Array.from({ length: 11 }, (_, i) => {
+  const size = i % 3 === 0 ? 9 : 6;
+  return {
+    a: Math.round(i * (360 / 11)),
+    s: size, half: -size / 2,
+    c: BIT_COLORS[i % BIT_COLORS.length],
+    r: i % 3 === 1 ? "50%" : "2px",
+    clip: i % 3 === 0 ? S : "none",
+    d: ((i % 4) * 0.035).toFixed(3)
+  };
+});
+const FONTS = {
+  round: { label: "동글", head: "'Jua',sans-serif", body: "'Gowun Dodum',system-ui,sans-serif" },
+  neat: { label: "또박", head: "'Gowun Batang',serif", body: "'Gowun Dodum',system-ui,sans-serif" },
+  yache: { label: "야체", head: "'YanoljaYache',sans-serif", body: "'YanoljaYache',sans-serif" },
+  story: { label: "즐거운이야기", head: "'JeulgeounIyagi',sans-serif", body: "'JeulgeounIyagi',sans-serif" }
+};
+
+const THEMES = {
+  strawberry: { label: "딸기우유", bg: "sky",
+    ac: "#FF5B3E", ac2: "#FF7FAE", ac3: "#FFC93C", sky: "#8FD9EE", grn: "#3FA86B",
+    soft: "#FFF6F2", line2: "#FFD3C6", track: "#FFE4D9", dash: "#E3B9C9", sub: "#5E93A8",
+    bg1: "#BFE7F6", bg2: "#DCF1F8", blob1: "#FFE9C9", blob2: "#D8F0E3", blob3: "#E6DDF8",
+    dotA: "#FFD3E0", dotB: "#CBEAF6", warm: "#FFF0D9", gridline: "rgba(143,217,238,.3)", stripe: "#FFD9E4" },
+  mint: { label: "민트소다", bg: "dots",
+    ac: "#1FA98F", ac2: "#7FD8C4", ac3: "#FFD75E", sky: "#8ED8E8", grn: "#3E9E78",
+    soft: "#EEFAF6", line2: "#BEE8DD", track: "#DCF1EA", dash: "#B4DFD2", sub: "#5E9A93",
+    bg1: "#C6EDE6", bg2: "#E2F6F1", blob1: "#FFF2CE", blob2: "#D3EFE6", blob3: "#DDEFF6",
+    dotA: "#C9EDE2", dotB: "#FFE9B8", warm: "#EAF8F3", gridline: "rgba(31,169,143,.22)", stripe: "#CFEDE4" },
+  lemon: { label: "레몬버터", bg: "grid",
+    ac: "#E8802A", ac2: "#FFB35C", ac3: "#FFD230", sky: "#8FD2E8", grn: "#5FA83F",
+    soft: "#FFF7EB", line2: "#FBDCB2", track: "#FCEBD3", dash: "#EBCBA0", sub: "#A8813E",
+    bg1: "#FFE6A8", bg2: "#FFF3D4", blob1: "#FFE0B8", blob2: "#E6F0C6", blob3: "#FFEDD0",
+    dotA: "#FFDFA8", dotB: "#FFF0C2", warm: "#FFF3D9", gridline: "rgba(232,128,42,.2)", stripe: "#FFE7BF" },
+  lavender: { label: "라벤더밤", bg: "dots",
+    ac: "#6C63C4", ac2: "#A79BE8", ac3: "#F7C948", sky: "#8FB7E8", grn: "#5B9E86",
+    soft: "#F4F2FD", line2: "#CFC8F0", track: "#E4E0F7", dash: "#C6BFE6", sub: "#7C7799",
+    bg1: "#CFD3F2", bg2: "#E7E9FA", blob1: "#F2E4FA", blob2: "#DCE6F7", blob3: "#E9DDF8",
+    dotA: "#DCD6F5", dotB: "#E9E1FA", warm: "#EFEBFB", gridline: "rgba(108,99,196,.2)", stripe: "#DCD6F2" },
+  matcha: { label: "말차라떼", bg: "grid",
+    ac: "#6E8F3C", ac2: "#A8C46A", ac3: "#E8B04B", sky: "#93C6C0", grn: "#4E7A34",
+    soft: "#F4F7EC", line2: "#CFDCB2", track: "#E4EDD2", dash: "#C4D3A8", sub: "#7D8A62",
+    bg1: "#D6E4BC", bg2: "#EBF2DE", blob1: "#F2E7CE", blob2: "#DCEBCF", blob3: "#E8EFDA",
+    dotA: "#D8E6C2", dotB: "#F0E6CC", warm: "#F3F0E0", gridline: "rgba(110,143,60,.2)", stripe: "#DDE8C8" }
+};
+
+const BGS = [
+  { id: "sky", label: "하늘", swatch: "linear-gradient(180deg,#BFE7F6 0%,#FFFCF5 100%)", swatchSize: "auto" },
+  { id: "grid", label: "모눈", swatch: "repeating-linear-gradient(0deg,rgba(143,217,238,.55) 0 1px,#FFFCF5 1px 8px),repeating-linear-gradient(90deg,rgba(143,217,238,.55) 0 1px,transparent 1px 8px)", swatchSize: "auto" },
+  { id: "dots", label: "물방울", swatch: "radial-gradient(circle at 5px 5px,#FFD3E0 2.4px,#FFFCF5 2.8px) 0 0/14px 14px,radial-gradient(circle at 5px 5px,#CBEAF6 2.4px,transparent 2.8px) 7px 7px/14px 14px", swatchSize: "14px 14px" }
+];
+
 const CAT = {
   "숙제": { bg: "#FFEDF3", fg: "#C24C77", clip: "none", radius: "50%" },
   "개인스케줄": { bg: "#FFF0E6", fg: "#C25A2E", clip: "polygon(50% 0,100% 100%,0 100%)", radius: "0" },
@@ -333,7 +624,8 @@ const CAT = {
 
 class Component extends DCLogic {
   state = {
-    streak: 4, celebrate: false, filled: 3,
+    streak: 4, celebrate: false, filled: 3, burstId: null,
+    theme: "strawberry", bg: "sky", font: "round",
     picked: CUTE8.slice(),
     tasks: [
       { id: 1, title: "수학 익힘책 12쪽", category: "숙제", due: "오늘", done: true },
@@ -350,6 +642,11 @@ class Component extends DCLogic {
   }
 
   toggle(id) {
+    const wasDone = this.state.tasks.find(t => t.id === id).done;
+    if (!wasDone) {
+      this.setState({ burstId: id });
+      setTimeout(() => this.setState(s => (s.burstId === id ? { burstId: null } : {})), 750);
+    }
     this.setState(s => {
       const tasks = s.tasks.map(t => (t.id === id ? { ...t, done: !t.done } : t));
       const was = s.tasks.every(t => t.done);
@@ -372,7 +669,8 @@ class Component extends DCLogic {
   }
 
   confettiEl() {
-    const cols = ["#FF5B3E", "#FF7FAE", "#FFC93C", "#8FD9EE", "#3FA86B", "#B9A7F0"];
+    const t = THEMES[this.state.theme] || THEMES.strawberry;
+    const cols = [t.ac, t.ac2, t.ac3, t.sky, t.grn, t.blob3];
     const pieces = Array.from({ length: 28 }, (_, i) => React.createElement("div", {
       key: i,
       style: {
@@ -392,7 +690,12 @@ class Component extends DCLogic {
     const done = tasks.filter(t => t.done).length;
     const pct = tasks.length ? Math.round((done / tasks.length) * 100) : 0;
     const dueTone = d => d === "오늘" ? { bg: "#FFF6E2", fg: "#A87A1E" } : { bg: "#F5F2ED", fg: "#7E776E" };
-    const groupNames = ["과일", "디저트", "꽃 · 식물", "하늘 · 마음"];
+    const groupNames = ["고양이", "과일", "채소 · 간식", "디저트", "꽃 · 식물", "하늘 · 마음", "사물"];
+    const on = (a, b) => a === b
+      ? { bg: "#FFF7F3", bd: "#FF5B3E", fg: "#C2452B" }
+      : { bg: "#FBF9F5", bd: "#F0EBE3", fg: "#A79EA8" };
+    const font = FONTS[this.state.font] || FONTS.round;
+    const th = THEMES[this.state.theme] || THEMES.strawberry;
 
     return {
       pct, count: done + "/" + tasks.length, ring: 270.2 * (1 - pct / 100),
@@ -404,6 +707,27 @@ class Component extends DCLogic {
       stickerLabel: this.state.filled + " / " + goal,
       confetti: this.confettiEl(),
       hero: pool[(this.state.filled - 1 + pool.length) % pool.length],
+      bgSky: this.state.bg === "sky", bgGrid: this.state.bg === "grid", bgDots: this.state.bg === "dots",
+      fhVal: font.head, fbVal: font.body, th: th,
+      themeChips: Object.keys(THEMES).map(key => {
+        const t = THEMES[key];
+        const c = on(this.state.theme, key);
+        return { label: t.label, bg: c.bg, bd: c.bd, fg: c.fg,
+          s1: t.ac, s2: t.ac2, s3: t.ac3,
+          onPick: () => this.setState({ theme: key, bg: t.bg }) };
+      }),
+      bgChips: BGS.map(b => {
+        const c = on(this.state.bg, b.id);
+        return { label: b.label, bg: c.bg, bd: c.bd, fg: c.fg, swatch: b.swatch, swatchSize: b.swatchSize,
+          onPick: () => this.setState({ bg: b.id }) };
+      }),
+      fontChips: Object.keys(FONTS).map(key => {
+        const f = FONTS[key];
+        const c = on(this.state.font, key);
+        return { label: f.label, head: f.head, bg: c.bg, bd: c.bd, fg: c.fg,
+          ink: this.state.font === key ? "#FF5B3E" : "#6E6672",
+          onPick: () => this.setState({ font: key }) };
+      }),
       pickedLabel: this.state.picked.length + "종 담김",
       onPickAll: () => this.setState({ picked: STICKERS.map(s => s.id) }),
       onPickNone: () => this.setState({ picked: [] }),
@@ -428,6 +752,7 @@ class Component extends DCLogic {
         const st = pool[i % pool.length];
         return {
           title: t.title, category: t.category, due: t.due, done: t.done, undone: !t.done, parts: st.parts,
+          burst: this.state.burstId === t.id, bits: BITS,
           bg: t.done ? "#FFF6F2" : "#fff",
           border: t.done ? "#FFD3C6" : "#F2EBE1",
           textColor: t.done ? "#B3A9AF" : "#2F2A33",

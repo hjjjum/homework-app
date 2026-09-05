@@ -284,13 +284,13 @@ export const MAX_NAME_LENGTH = 20;
 
 /** 아직 정하지 않았을 때 쓰는 이름과 아이콘 (icon은 stickers.js의 id) */
 export const DEFAULT_PROFILE = {
-  daughter1: { name: "채원이", icon: "star" },
-  daughter2: { name: "채이", icon: "cherry" },
+  daughter1: { name: "채원이", icon: "moon" },
+  daughter2: { name: "채이", icon: "cheese" },
 };
 
 /** 저장된 값이 없거나 망가졌을 때도 항상 온전한 모양을 돌려준다. */
 export function normalizeProfile(studentId, data) {
-  const base = DEFAULT_PROFILE[studentId] || { name: studentId, icon: "star" };
+  const base = DEFAULT_PROFILE[studentId] || { name: studentId, icon: "moon" };
   const name = data && typeof data.name === "string" ? data.name.trim() : "";
   const icon = data && typeof data.icon === "string" ? data.icon.trim() : "";
   return {
