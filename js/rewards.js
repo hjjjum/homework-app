@@ -57,6 +57,42 @@ function buzz(pattern) {
   if (navigator.vibrate) { try { navigator.vibrate(pattern); } catch (e) {} }
 }
 
+/** 조각 개수. 홀수라 좌우가 딱 맞지 않아 더 자연스럽게 흩어진다. */
+const BURST_BITS = 11;
+
+/**
+ * 누른 자리에서 조각이 터지는 효과.
+ * 목록이 스크롤돼 있어도 위치가 맞도록 getBoundingClientRect() + position:fixed 로 띄우고,
+ * 0.8초 뒤 스스로 사라진다. "동작 줄이기"를 켠 기기에서는 아무것도 만들지 않는다.
+ * @param {Element} [anchor] 터뜨릴 기준 엘리먼트 (없으면 아무 일도 하지 않는다)
+ */
+export function burstAt(anchor) {
+  if (!anchor || typeof anchor.getBoundingClientRect !== "function") return;
+  if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+  const box = anchor.getBoundingClientRect();
+  if (!box.width && !box.height) return;   // 화면에 없는 요소
+
+  const burst = el("div", "burst");
+  burst.setAttribute("aria-hidden", "true");
+  burst.style.left = (box.left + box.width / 2) + "px";
+  burst.style.top = (box.top + box.height / 2) + "px";
+  burst.appendChild(el("span", "burst-wave"));
+
+  for (let i = 0; i < BURST_BITS; i++) {
+    // 팔을 돌려 방향을 정하고, 조각은 그 방향으로 날아가기만 한다
+    const arm = el("span", "burst-arm");
+    arm.style.transform = "rotate(" + ((360 / BURST_BITS) * i + 8) + "deg)";
+    const bit = el("i", "burst-bit");
+    bit.style.setProperty("--dist", (34 + (i % 4) * 9) + "px");
+    arm.appendChild(bit);
+    burst.appendChild(arm);
+  }
+
+  document.body.appendChild(burst);
+  setTimeout(() => burst.remove(), 800);
+}
+
 export function initRewards(studentId, options) {
   const opts = options || {};
   const state = load(studentId);
@@ -221,8 +257,8 @@ export function initRewards(studentId, options) {
 
   return {
     state,
-    /** 체크 하나가 완료로 바뀔 때 (짧은 진동) */
-    onCompleted() { buzz(15); },
+    /** 체크 하나가 완료로 바뀔 때 (짧은 진동 + 누른 자리에서 터지는 조각) */
+    onCompleted(anchor) { buzz(15); burstAt(anchor); },
     /** renderProgress() 끝에서 호출. calcProgress()[ALL] 객체를 그대로 넘기면 된다. */
     setProgress(p) {
       const ratio = p && typeof p.비율 === "number" ? p.비율 : 0;

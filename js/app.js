@@ -425,7 +425,6 @@ export function initApp(studentId) {
     }
     try {
       await updateTodo(studentId, id, changes);
-      if (completed) rewards.onCompleted();
       setStatus(completed ? "잘했어요!" : "다시 할 일로 되돌렸어요.");
     } catch (err) {
       reportError("완료 표시", err);
@@ -442,7 +441,6 @@ export function initApp(studentId) {
     const completed = items.every((it) => it.done);
     try {
       await updateTodo(studentId, id, { items, completed });
-      if (done) rewards.onCompleted();
       setStatus(completed ? "숙제 하나를 다 끝냈어요!" : "");
     } catch (err) {
       reportError("항목 체크", err);
@@ -660,9 +658,12 @@ export function initApp(studentId) {
 
     switch (action) {
       case "toggle":
+        // 저장을 기다리지 않고 누른 자리에서 바로 터뜨린다 (기다리면 한 박자 늦다)
+        if (trigger.checked) rewards.onCompleted(trigger);
         handleToggle(id, trigger.checked);
         break;
       case "toggle-item":
+        if (trigger.checked) rewards.onCompleted(trigger);
         handleToggleItem(id, Number(trigger.dataset.index), trigger.checked);
         break;
       case "edit":

@@ -272,3 +272,29 @@ body[data-theme="calm"] .todo.is-done, body[data-theme="calm"] .completed .todo 
   * { animation-duration: .01ms !important; animation-iteration-count: 1 !important;
       transition-duration: .01ms !important; }
 }
+
+/* ---------- 체크할 때 터지는 조각 (rewards.js의 burstAt) ---------- */
+/* 누른 자리에 position:fixed로 붙는다. 스크롤 위치와 무관하게 정확히 맞는다. */
+.burst { position: fixed; z-index: 60; width: 0; height: 0; pointer-events: none; }
+/* 파동 하나 — 코랄 링이 퍼지며 옅어진다 */
+.burst-wave { position: absolute; left: -13px; top: -13px; width: 26px; height: 26px;
+  border-radius: 50%; border: 2.5px solid var(--coral);
+  animation: shockwave .55s cubic-bezier(.2, .8, .3, 1) forwards; }
+/* 조각은 팔(arm)을 돌려 방향을 정하고, 조각 자신은 바깥으로만 날아간다 */
+.burst-arm { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+.burst-bit { position: absolute; left: -3.5px; top: -3.5px; width: 7px; height: 7px;
+  border-radius: 2px; animation: shoot .8s cubic-bezier(.15, .75, .35, 1) forwards; }
+.burst-arm:nth-child(3n) .burst-bit { width: 6px; height: 6px; border-radius: 50%; }
+.burst-arm:nth-child(6n+1) .burst-bit { background: var(--coral); }
+.burst-arm:nth-child(6n+2) .burst-bit { background: var(--pink); }
+.burst-arm:nth-child(6n+3) .burst-bit { background: var(--yellow); }
+.burst-arm:nth-child(6n+4) .burst-bit { background: var(--sky); }
+.burst-arm:nth-child(6n+5) .burst-bit { background: var(--green); }
+.burst-arm:nth-child(6n) .burst-bit { background: var(--lilac); }
+
+@keyframes shockwave { 0% { transform: scale(.2); opacity: .95 }
+  100% { transform: scale(2.6); opacity: 0 } }
+/* --dist는 조각마다 rewards.js가 넣어준다 */
+@keyframes shoot { 0% { transform: translateY(0) scale(.6); opacity: 1 }
+  70% { opacity: 1 }
+  100% { transform: translateY(calc(var(--dist, 46px) * -1)) scale(.85); opacity: 0 } }
