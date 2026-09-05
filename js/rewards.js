@@ -99,6 +99,7 @@ export function initRewards(studentId, options) {
   const host = document.querySelector(opts.panelSelector || "#reward-panel");
   const ringHost = document.querySelector(opts.ringSelector || "#progress-ring");
   let lastRatio = null;
+  let lastTotal = 0;   // 오늘 몫이 몇 개인가 (0이면 안내 문구를 띄운다)
 
   document.body.dataset.theme = state.theme;
 
@@ -163,6 +164,10 @@ export function initRewards(studentId, options) {
     }
     card.appendChild(grid);
     card.appendChild(el("p", "hint", BOARD_GOAL + "칸을 다 채우면 엄마와 약속한 상을 받아요."));
+    // 오늘 몫이 비어 있으면 스티커를 받을 방법 자체가 없다. 그 사실을 알려준다.
+    if (lastTotal === 0) {
+      card.appendChild(el("p", "hint", "오늘의 목표가 비어 있어요. 할 일의 마감일을 [오늘]로 옮기면 오늘 몫이 돼요."));
+    }
 
     const pickBtn = el("button", "btn btn--ghost btn--block", "스티커 고르기 (" + state.picked.length + "종)");
     pickBtn.type = "button";
@@ -221,7 +226,7 @@ export function initRewards(studentId, options) {
     const art = el("div", "celebrate-art");
     art.appendChild(createSticker(stickerId, 104));
     box.appendChild(art);
-    box.appendChild(el("h2", null, "오늘 할 일 끝!"));
+    box.appendChild(el("h2", null, "오늘 목표 끝!"));
     box.appendChild(el("p", null, getSticker(stickerId).name + " 스티커를 받았어요. " + state.streak + "일 연속 달성 중이에요."));
     const ok = el("button", "btn btn--primary btn--block", "스티커 받기");
     ok.type = "button";
@@ -268,6 +273,7 @@ export function initRewards(studentId, options) {
         if (c) c.textContent = p.완료 + "/" + p.총;
       }
       const total = p ? p.총 : 0;
+      if (total !== lastTotal) { lastTotal = total; renderPanel(); }
       if (lastRatio !== null && ratio === 100 && lastRatio < 100 && total > 0) {
         const given = awardOnce();
         if (given) celebrate(given);

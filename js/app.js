@@ -30,6 +30,8 @@ import {
   sameDay,
   dueLabel,
   sortByUrgency,
+  selectToday,
+  shiftDate,
 } from "./todo-logic.js";
 import { createDuePicker, createUrgentToggle, urgentIcon } from "./due-picker.js";
 import { createTodoEditor, makeEditDraft } from "./todo-editor.js";
@@ -85,6 +87,11 @@ export function initApp(studentId) {
     quickDate: $("quick-date"),
     quickAddBtn: $("quick-add-btn"),
     addCancel: $("add-cancel"),
+    progressAll: $("progress-all"),
+    todaySection: $("today-section"),
+    todayList: $("today-list"),
+    todayCount: $("today-count"),
+    restTitle: $("rest-title"),
     activeList: $("active-list"),
     completedList: $("completed-list"),
     toggleCompletedBtn: $("toggle-completed"),
@@ -189,9 +196,17 @@ export function initApp(studentId) {
     }
   }
 
+  /**
+   * 진행률은 **오늘 몫**을 분모로 삼는다. 숙제는 계속 쌓이기 때문에 전체를 분모로 두면
+   * 100%가 영영 오지 않고, 그러면 스티커도 영영 안 나온다. 전체 상황은 옆에 작게만 둔다.
+   */
   function renderProgress() {
-    const p = calcProgress(state.todos)[ALL];
+    const p = calcProgress(selectToday(state.todos))[ALL];
+    const whole = calcProgress(state.todos)[ALL];
     rewards.setProgress(p);
+    if (els.progressAll) {
+      els.progressAll.textContent = whole.총 > 0 ? "전체 " + whole.완료 + "/" + whole.총 : "";
+    }
     if (els.progressCount) els.progressCount.textContent = p.완료 + "/" + p.총 + " 완료";
     if (els.progressPercent) els.progressPercent.textContent = p.비율 + "%";
     if (els.progressFill) {
@@ -253,7 +268,7 @@ export function initApp(studentId) {
     return li;
   }
 
-  function renderItem(todo, index) {
+  function renderItem(todo, index, options) {
     if (state.editingId === todo.id) return renderEditForm(todo);
     if (state.confirmingId === todo.id) return renderDeleteConfirm(todo);
 
@@ -329,7 +344,18 @@ export function initApp(studentId) {
 
     // 한 줄짜리 요약 부분
     const row = makeEl("div", "todo-row");
-    row.append(check, main, urgent, del);
+    row.append(check, main);
+    // 오늘 몫에만 "내일로". 이게 없으면 못 끝낸 것이 매일 지난 마감으로 쌓여서
+    // 오늘 몫이 다시 끝없이 불어난다.
+    if (options && options.canPush) {
+      const push = makeEl("button", "push-btn", "내일로");
+      push.type = "button";
+      push.dataset.action = "push";
+      push.dataset.id = todo.id;
+      push.setAttribute("aria-label", todo.title + " 내일로 미루기");
+      row.appendChild(push);
+    }
+    row.append(urgent, del);
     li.appendChild(row);
 
     // 세부 항목이 있으면 하나씩 체크할 수 있게 아래에 펼쳐준다
@@ -366,14 +392,14 @@ export function initApp(studentId) {
     return li;
   }
 
-  function renderList(container, todos, emptyText) {
+  function renderList(container, todos, emptyText, options) {
     if (!container) return;
     container.textContent = "";
     if (todos.length === 0) {
       container.appendChild(makeEl("li", "empty", emptyText));
       return;
     }
-    todos.forEach((todo, i) => container.appendChild(renderItem(todo, i)));
+    todos.forEach((todo, i) => container.appendChild(renderItem(todo, i, options)));
   }
 
   function render() {
@@ -386,9 +412,26 @@ export function initApp(studentId) {
     renderFilters();
     renderProgress();
 
+    // 오늘 몫과 나머지로 나눈다. 오늘 몫만 진행 링과 스티커의 분모가 된다.
+    const todayIds = new Set(selectToday(state.todos).map((t) => t.id));
+    const todayActive = active.filter((t) => todayIds.has(t.id));
+    const restActive = active.filter((t) => !todayIds.has(t.id));
+
+    renderList(
+      els.todayList,
+      todayActive,
+      "오늘 할 일이 아직 없어요. 아래에서 하고 싶은 걸 골라 마감일을 [오늘]로 옮겨 보세요.",
+      { canPush: true }
+    );
+    if (els.todayCount) {
+      const done = calcProgress(selectToday(state.todos))[ALL];
+      els.todayCount.textContent = done.총 > 0 ? done.완료 + " / " + done.총 : "";
+    }
+
     const emptyText =
       state.filter === ALL ? "할 일이 없어요. 오늘은 여유롭네요." : state.filter + " 항목이 없어요.";
-    renderList(els.activeList, active, emptyText);
+    renderList(els.activeList, restActive, emptyText);
+    if (els.restTitle) els.restTitle.hidden = restActive.length === 0;
 
     if (els.addToggle) {
       els.addToggle.textContent = state.addOpen ? "닫기" : "+ 할일 추가";
@@ -444,6 +487,18 @@ export function initApp(studentId) {
       setStatus(completed ? "숙제 하나를 다 끝냈어요!" : "");
     } catch (err) {
       reportError("항목 체크", err);
+    }
+  }
+
+  /** 오늘 못 하는 것을 내일로 미룬다. 급한 일 표시는 함께 내린다 — 안 내리면 내일도 오늘 몫이다. */
+  async function handlePush(id) {
+    const todo = state.todos.find((t) => t.id === id);
+    if (!todo) return;
+    try {
+      await updateTodo(studentId, id, { date: shiftDate(1), urgent: false });
+      setStatus("내일로 미뤘어요.");
+    } catch (err) {
+      reportError("내일로 미루기", err);
     }
   }
 
@@ -672,6 +727,9 @@ export function initApp(studentId) {
         state.confirmingId = null;
         render();
         break;
+      case "push":
+        handlePush(id);
+        break;
       case "urgent":
         handleUrgent(id, trigger.dataset.on !== "true");
         break;
@@ -690,7 +748,7 @@ export function initApp(studentId) {
     }
   }
 
-  for (const list of [els.activeList, els.completedList]) {
+  for (const list of [els.todayList, els.activeList, els.completedList]) {
     if (!list) continue;
     list.addEventListener("click", onListEvent);
     list.addEventListener("change", onListEvent); // 체크박스

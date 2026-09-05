@@ -298,3 +298,21 @@ body[data-theme="calm"] .todo.is-done, body[data-theme="calm"] .completed .todo 
 @keyframes shoot { 0% { transform: translateY(0) scale(.6); opacity: 1 }
   70% { opacity: 1 }
   100% { transform: translateY(calc(var(--dist, 46px) * -1)) scale(.85); opacity: 0 } }
+
+/* ---------- 오늘의 목표 ---------- */
+/* 오늘 몫만 진행 링과 스티커의 분모가 된다. 나머지는 아래에 옅게 둔다. */
+.today { margin: 0 0 6px; }
+.today-head { display: flex; align-items: baseline; justify-content: space-between;
+  gap: 10px; margin: 0 2px 8px; }
+.today-head h2 { font-family: var(--font-head); font-size: 17px; margin: 0; color: var(--ink); }
+.today-count { font-size: 13px; color: var(--ink-soft); }
+.rest-title { font-family: var(--font-head); font-size: 15px; color: var(--ink-soft);
+  margin: 18px 2px 8px; }
+/* 나머지 목록은 한 걸음 물러나 보이게 — "오늘 다 못 했다"는 압박을 주지 않으려는 것 */
+#active-list > .todo { opacity: .82; }
+
+/* 내일로 미루기 */
+.push-btn { flex: none; min-height: 34px; padding: 0 11px; border-radius: 999px;
+  border: 1px dashed var(--line); background: transparent; color: var(--ink-soft);
+  font-family: var(--font-body); font-size: 12.5px; cursor: pointer; }
+.push-btn:hover { border-style: solid; color: var(--ink); }

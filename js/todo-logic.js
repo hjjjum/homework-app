@@ -157,6 +157,47 @@ export function shiftDate(days, base = new Date()) {
 }
 
 /**
+ * 오늘 이후로 가장 가까운 그 요일의 "YYYY-MM-DD".
+ * 오늘이 그 요일이면 오늘이 아니라 **다음 주**를 준다 — [오늘] 칩이 따로 있으므로
+ * 토요일에 누른 [토]가 오늘을 뜻하면 두 칩이 같은 날이 되어 헷갈린다.
+ * @param {number} dow 0=일 … 6=토
+ */
+export function nextWeekday(dow, base = new Date()) {
+  const diff = (dow - base.getDay() + 7) % 7;
+  return shiftDate(diff === 0 ? 7 : diff, base);
+}
+
+/** "2026-09-05" → "9/5" (칩에 날짜를 병기할 때 쓴다). 형식이 아니면 빈 문자열. */
+export function shortDate(dateStr) {
+  if (typeof dateStr !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return "";
+  const [, m, d] = dateStr.split("-").map(Number);
+  return m + "/" + d;
+}
+
+/**
+ * "오늘 해야 할 몫"을 고른다. 진행 링과 스티커 판정의 분모가 되는 목록이다.
+ *
+ * 숙제는 계속 쌓이기 때문에 전체를 분모로 삼으면 100%가 영영 오지 않는다.
+ * 그래서 오늘 치를 것만 센다:
+ *   - 마감이 오늘이거나 지난 것
+ *   - 급한 일(urgent) — 마감이 언제든 오늘 몫이다
+ * 날짜가 없는 것("다음 수업까지")은 **넣지 않는다.** 오늘 하고 싶으면
+ * 마감일을 [오늘]로 옮기면 되고, 그것이 아이가 하루 목표를 정하는 방법이다.
+ *
+ * (원본 배열은 건드리지 않는다)
+ */
+export function selectToday(todos, today = new Date()) {
+  const limit = toDateValue(today instanceof Date && !isNaN(today) ? today : new Date());
+  return (todos || []).filter((todo) => {
+    if (!todo) return false;
+    if (todo.urgent === true) return true;
+    const date = todo.date;
+    if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+    return date <= limit;   // "YYYY-MM-DD"는 문자열 비교로도 날짜순이 맞는다
+  });
+}
+
+/**
  * 긴급 → 나머지 순으로 정렬한다. 같은 급 안의 순서는 그대로 둔다.
  * (원본 배열은 건드리지 않는다)
  */

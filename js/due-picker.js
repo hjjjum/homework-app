@@ -6,7 +6,7 @@
 // 대부분의 학원 숙제는 "다음 수업까지"라서 그것이 기본값이고, 오늘/내일/모레는
 // 한 번만 누르면 되게 뒀다. 그 밖의 날짜만 달력을 연다.
 // ---------------------------------------------------------------------------
-import { shiftDate } from "./todo-logic.js";
+import { shiftDate, nextWeekday, shortDate } from "./todo-logic.js";
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -32,12 +32,23 @@ export function createDuePicker(value, onChange) {
   date.value = wrap.dataset.value;
   date.setAttribute("aria-label", "다른 날짜 고르기");
 
+  // 요일 칩은 "이번 주말까지" 같은 숙제를 한 번에 고르라고 둔 것이다.
+  // 날짜를 병기하는 이유: 토요일에 누른 [토]는 다음 주 토요일이라 병기가 없으면 오해한다.
+  const weekday = (label, dow) => {
+    const value = nextWeekday(dow);
+    return [label + " " + shortDate(value), value];
+  };
+
   const presets = [
     ["다음 수업까지", ""],
     ["오늘", shiftDate(0)],
     ["내일", shiftDate(1)],
     ["모레", shiftDate(2)],
-  ];
+    weekday("토", 6),
+    weekday("일", 0),
+  ]
+    // 토/일이 내일·모레와 같은 날이면 그 칩은 뺀다 (같은 날짜 칩이 둘이면 헷갈린다)
+    .filter(([, v], i, all) => all.findIndex(([, other]) => other === v) === i);
   const chips = [];
 
   function sync(next) {

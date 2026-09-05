@@ -26,6 +26,7 @@
         <p class="progress-text">
           <span class="progress-count" id="progress-count">0/0 완료</span>
           <span class="progress-percent" id="progress-percent">0%</span>
+          <span class="progress-all" id="progress-all"></span>
         </p>
         <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
           <div class="progress-fill" id="progress-fill"></div>
@@ -75,6 +76,15 @@
         </div>
       </section>
 
+      <section class="today" id="today-section" aria-labelledby="today-title">
+        <div class="today-head">
+          <h2 id="today-title">오늘의 목표</h2>
+          <span class="today-count" id="today-count"></span>
+        </div>
+        <ul class="todo-list" id="today-list"></ul>
+      </section>
+
+      <h2 class="rest-title" id="rest-title">앞으로 할 일</h2>
       <ul class="todo-list" id="active-list"></ul>
 
       <section id="reward-panel" aria-label="스티커와 연속 달성"></section>
