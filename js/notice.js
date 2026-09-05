@@ -1,6 +1,7 @@
 // ---------------------------------------------------------------------------
 // notice.js
-// 화면 위에 잠깐 떴다 사라지는 알림 배너. 지금은 "엄마가 숙제를 보냈어요"에만 쓴다.
+// 화면 위에 잠깐 떴다 사라지는 알림 배너. 클래스 이름은 .toast다 —
+// mom.html이 이미 .notice 문단을 쓰고 있어서 이름을 나눴다. 지금은 "엄마가 숙제를 보냈어요"에만 쓴다.
 //
 // alert()·confirm()은 쓰지 않는다는 규칙이 있어서(브라우저 모달이 자동화 세션을
 // 멈춘다) 배너로 만들었다. 화면을 가리지 않도록 맨 위에 붙고, 누르면 바로 닫힌다.
@@ -27,16 +28,16 @@ export function showNotice(text, options) {
   dismissNotice();
 
   const box = document.createElement("div");
-  box.className = "notice";
+  box.className = "toast";
   box.setAttribute("role", "status");
   box.appendChild(Object.assign(document.createElement("span"), {
-    className: "notice-text",
+    className: "toast-text",
     textContent: text,
   }));
 
   const close = document.createElement("button");
   close.type = "button";
-  close.className = "notice-close";
+  close.className = "toast-close";
   close.textContent = "확인";
   close.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -45,7 +46,7 @@ export function showNotice(text, options) {
   box.appendChild(close);
 
   if (typeof opts.onClick === "function") {
-    box.classList.add("notice--tappable");
+    box.classList.add("toast--tappable");
     box.addEventListener("click", () => {
       opts.onClick();
       dismissNotice();

@@ -388,19 +388,19 @@ a:hover { color: color-mix(in oklch, var(--ac) 78%, black); }
   font-family: var(--font-body); font-size: 12.5px; cursor: pointer; }
 .push-btn:hover { border-style: solid; color: var(--ink); }
 
-/* ---------- 알림 배너 (notice.js) ---------- */
+/* ---------- 알림 배너 (notice.js). mom.html에 이미 .notice 문단이 있어 이름을 나눴다 ---------- */
 /* 엄마가 숙제를 보냈을 때 화면 위에 잠깐 뜬다. 앱을 보고 있을 때만 보인다. */
-.notice { position: fixed; z-index: 70; left: 50%; top: 12px; transform: translateX(-50%);
+.toast { position: fixed; z-index: 70; left: 50%; top: 12px; transform: translateX(-50%);
   width: min(420px, calc(100vw - 24px)); display: flex; align-items: center; gap: 10px;
   padding: 13px 14px; border-radius: var(--r-card); background: var(--card);
   border: 2px solid var(--coral); box-shadow: var(--shadow);
   font-family: var(--font-body); animation: slidedown .35s cubic-bezier(.2, 1.3, .4, 1) both; }
-.notice-text { flex: 1; font-size: 14px; color: var(--ink); line-height: 1.45;
+.toast-text { flex: 1; font-size: 14px; color: var(--ink); line-height: 1.45;
   overflow-wrap: anywhere; }
-.notice-close { flex: none; min-height: 38px; padding: 0 14px; border-radius: 999px;
+.toast-close { flex: none; min-height: 38px; padding: 0 14px; border-radius: 999px;
   border: none; background: var(--coral); color: #fff;
   font-family: var(--font-head); font-size: 13.5px; cursor: pointer; }
-.notice--tappable .notice-text { cursor: pointer; }
+.toast--tappable .toast-text { cursor: pointer; }
 
 /* 배너를 눌러 찾아간 항목을 잠깐 짚어준다 */
 .todo--just-arrived { outline: 2.5px solid var(--coral); outline-offset: 2px; }

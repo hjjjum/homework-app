@@ -32,6 +32,7 @@ import {
 import { createDuePicker, createUrgentToggle, urgentIcon } from "./due-picker.js";
 import { createTodoEditor, makeEditDraft } from "./todo-editor.js";
 import { createSticker } from "./stickers.js";
+import { initAppearance } from "./appearance.js";
 import { INPUT_SOURCES, getSource } from "./sources/index.js";
 import { recognizeImage, imageFromPaste, parseDueDate } from "./ocr.js";
 
@@ -101,6 +102,8 @@ export function initMom() {
     sendBtn: $("send-btn"),
     clearBtn: $("clear-btn"),
     inputStatus: $("input-status"),
+
+    appearance: $("appearance"),
 
     // 현황 탭
     kidCards: $("kid-cards"),
@@ -998,6 +1001,11 @@ export function initMom() {
       renderWatch();
     })
   );
+
+  // 테마·배경·글꼴. 딸들과 저장 키가 달라서(hw.appearance.mom) 서로 영향을 주지 않는다.
+  if (els.appearance) {
+    els.appearance.appendChild(initAppearance("hw.appearance.mom").card);
+  }
 
   renderTabs();
   renderSourcePicker();
