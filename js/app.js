@@ -32,6 +32,7 @@ import {
   sortByUrgency,
   selectToday,
   shiftDate,
+  newFromMom,
 } from "./todo-logic.js";
 import { createDuePicker, createUrgentToggle, urgentIcon } from "./due-picker.js";
 import { createTodoEditor, makeEditDraft } from "./todo-editor.js";
@@ -40,6 +41,7 @@ import { INPUT_SOURCES, getSource } from "./sources/index.js";
 import { recognizeImage, imageFromPaste, parseDueDate } from "./ocr.js";
 import { initRewards } from "./rewards.js";
 import { createSticker, STICKERS, GROUPS } from "./stickers.js";
+import { showNotice } from "./notice.js";
 
 // 순수 로직은 todo-logic.js, 입력 파싱은 sources/ 아래로 분리되어 있다.
 // 콘솔이나 다른 화면에서 쓰기 편하도록 여기서 다시 내보낸다.
@@ -114,6 +116,9 @@ export function initApp(studentId) {
     profile: null,      // { name, icon } — 화면 제목에 쓴다
     confirmingId: null, // 삭제 확인 대기 중인 항목
     confirmingAll: false,
+    // 직전 구독에서 보고 있던 id들. null이면 아직 첫 목록을 못 받았다는 뜻이라,
+    // 앱을 열 때 예전 숙제까지 "새로 왔다"고 알리지 않는다.
+    seenIds: null,
   };
 
   // 성취 연출(진행 링·스티커 판·축하). Firestore는 건드리지 않고 이 기기에만 저장한다.
@@ -500,6 +505,21 @@ export function initApp(studentId) {
     } catch (err) {
       reportError("내일로 미루기", err);
     }
+  }
+
+  /** 제목의 첫 줄만 짧게. 학원 알림장을 통째로 담은 숙제는 제목이 아주 길다. */
+  function firstLine(title) {
+    const line = String(title || "").split(/\r?\n/)[0].trim();
+    return line.length > 24 ? line.slice(0, 24) + "…" : line;
+  }
+
+  /** 배너를 눌렀을 때 그 할일로 데려간다. 목록에 없으면 (거른 상태 등) 아무 일도 안 한다. */
+  function scrollToTodo(id) {
+    const row = document.querySelector('.todo[data-id="' + id + '"]');
+    if (!row) return;
+    row.scrollIntoView({ behavior: "smooth", block: "center" });
+    row.classList.add("todo--just-arrived");
+    setTimeout(() => row.classList.remove("todo--just-arrived"), 2000);
   }
 
   async function handleSave(draft) {
@@ -990,8 +1010,19 @@ export function initApp(studentId) {
     studentId,
     (todos) => {
       state.todos = todos;
-      // 수정/삭제 확인 중이던 항목이 사라졌다면 상태를 정리한다.
+      // 엄마가 방금 보낸 숙제가 있으면 배너로 알린다 (앱을 보고 있을 때만 뜬다)
+      const arrived = newFromMom(state.seenIds, todos);
       const ids = new Set(todos.map((t) => t.id));
+      state.seenIds = ids;
+      if (arrived.length > 0) {
+        showNotice(
+          arrived.length === 1
+            ? "엄마가 '" + firstLine(arrived[0].title) + "'를 보냈어요."
+            : "엄마가 숙제 " + arrived.length + "개를 보냈어요.",
+          { onClick: () => arrived[0] && scrollToTodo(arrived[0].id) }
+        );
+      }
+      // 수정/삭제 확인 중이던 항목이 사라졌다면 상태를 정리한다.
       if (state.editingId && !ids.has(state.editingId)) closeEditor();
       if (state.confirmingId && !ids.has(state.confirmingId)) state.confirmingId = null;
       render();

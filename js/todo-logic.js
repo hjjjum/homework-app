@@ -198,6 +198,19 @@ export function selectToday(todos, today = new Date()) {
 }
 
 /**
+ * 엄마가 방금 보낸 할일만 골라낸다. 화면에 "숙제가 왔어요" 배너를 띄울 때 쓴다.
+ *
+ * @param {Set<string>|null} seen 직전 구독에서 보고 있던 id들.
+ *   **null이면 첫 구독**이라 아무것도 새 것이 아니다 — 앱을 열 때마다 예전 숙제까지
+ *   전부 "새로 왔다"고 알리면 안 되기 때문이다.
+ * @param {Array} todos 이번에 온 목록
+ */
+export function newFromMom(seen, todos) {
+  if (!(seen instanceof Set)) return [];
+  return (todos || []).filter((t) => t && t.addedBy === "mom" && !seen.has(t.id));
+}
+
+/**
  * 긴급 → 나머지 순으로 정렬한다. 같은 급 안의 순서는 그대로 둔다.
  * (원본 배열은 건드리지 않는다)
  */
