@@ -427,7 +427,8 @@ textarea.field {
 
 /* 항목 본문 전체가 버튼 = 탭하면 수정 */
 .todo-main {
-  flex: 1;
+  /* 제목이 최소 150px는 갖는다. 그보다 좁아질 상황이면 단추 묶음이 아래로 내려간다. */
+  flex: 1 1 150px;
   min-width: 0;
   min-height: var(--tap);
   padding: 12px 4px 12px 0;
@@ -1206,7 +1207,19 @@ textarea.field {
 .todo-row {
   display: flex;
   align-items: flex-start;
+  flex-wrap: wrap;
   gap: 4px;
+}
+
+/* 단추 묶음. 좁은 화면에서는 한 덩어리로 아랫줄에 내려가 오른쪽에 붙는다.
+   묶지 않으면 단추들이 flex:none이라 제 폭을 그대로 차지해서
+   제목 칸만 짓눌린다 (360px 폰에서 제목에 77px밖에 안 남았다). */
+.todo-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
 }
 
 .item-count {

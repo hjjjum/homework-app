@@ -191,7 +191,11 @@ a:hover { color: color-mix(in oklch, var(--ac) 78%, black); }
 .todo-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .todo { background: var(--card); border: 2px solid var(--line); border-radius: var(--r-card);
   padding: 14px 15px; transition: background .25s ease, border-color .25s ease; }
-.todo-row { display: flex; align-items: center; gap: 13px; }
+.todo-row { display: flex; align-items: center; flex-wrap: wrap; gap: 13px; }
+/* 단추 묶음. 좁은 화면에서는 통째로 아랫줄로 내려가 오른쪽에 붙는다.
+   묶지 않으면 단추들이 flex:none이라 제 폭을 그대로 가져가서 제목 칸만 짓눌린다
+   (360px 폰에서 제목에 40px밖에 안 남았다). */
+.todo-actions { flex: none; display: flex; align-items: center; gap: 13px; margin-left: auto; }
 .todo.is-done, .completed .todo { background: var(--soft); border-color: var(--line2); }
 
 .check { position: relative; width: 44px; height: 44px; flex: none; display: flex;
@@ -203,7 +207,7 @@ a:hover { color: color-mix(in oklch, var(--ac) 78%, black); }
 .check input:checked ~ .check-box { display: none; }
 .check input:checked ~ .sticker { display: block; animation: stamp .45s cubic-bezier(.3, 1.5, .4, 1) both; }
 
-.todo-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px;
+.todo-main { flex: 1 1 150px; min-width: 0; display: flex; flex-direction: column; gap: 8px;
   background: none; border: 0; padding: 0; text-align: left; font: inherit; cursor: pointer; }
 .todo-title { font-size: 15.5px; color: var(--ink); line-height: 1.35; text-wrap: pretty; }
 .completed .todo-title, .todo.is-done .todo-title { color: #B3A9AF; text-decoration: line-through; }

@@ -347,9 +347,10 @@ export function initApp(studentId) {
     del.setAttribute("aria-label", todo.title + " 삭제");
     del.appendChild(trashIcon());
 
-    // 한 줄짜리 요약 부분
-    const row = makeEl("div", "todo-row");
-    row.append(check, main);
+    // 한 줄짜리 요약 부분.
+    // 단추들은 한 덩어리로 묶는다 — 좁은 화면에서 제목 칸을 짓누르는 대신
+    // 통째로 아랫줄로 내려가게 하려는 것이다 (CSS의 .todo-actions).
+    const rowActions = makeEl("div", "todo-actions");
     // 오늘 몫에만 "내일로". 이게 없으면 못 끝낸 것이 매일 지난 마감으로 쌓여서
     // 오늘 몫이 다시 끝없이 불어난다.
     if (options && options.canPush) {
@@ -358,9 +359,12 @@ export function initApp(studentId) {
       push.dataset.action = "push";
       push.dataset.id = todo.id;
       push.setAttribute("aria-label", todo.title + " 내일로 미루기");
-      row.appendChild(push);
+      rowActions.appendChild(push);
     }
-    row.append(urgent, del);
+    rowActions.append(urgent, del);
+
+    const row = makeEl("div", "todo-row");
+    row.append(check, main, rowActions);
     li.appendChild(row);
 
     // 세부 항목이 있으면 하나씩 체크할 수 있게 아래에 펼쳐준다
