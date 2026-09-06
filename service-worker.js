@@ -10,7 +10,7 @@
 // 파일을 고친 뒤 배포할 때는 아래 CACHE_VERSION을 올려야 사용자에게 새 버전이 간다.
 // ---------------------------------------------------------------------------
 
-const CACHE_VERSION = "v32";
+const CACHE_VERSION = "v33";
 const CACHE_NAME = "homework-app-" + CACHE_VERSION;
 
 /** 설치할 때 미리 받아둘 파일들. 상대 경로라 GitHub Pages 하위 경로에서도 동작한다. */
@@ -166,6 +166,10 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin && !request.url.startsWith(CDN_PREFIX)) {
     return;
   }
+
+  // 설치용 apk는 손대지 않는다. 1MB가 넘는 덩어리라 캐시에 넣을 이유가 없고,
+  // 브라우저가 알아서 내려받게 두는 편이 안전하다.
+  if (url.pathname.includes("/apk/")) return;
 
   // 화면 이동(주소창 입력, 홈 화면 아이콘 실행)
   if (request.mode === "navigate") {
