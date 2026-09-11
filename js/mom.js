@@ -2,15 +2,18 @@
 // mom.js
 // mom.html 전용 로직. 두 개의 탭으로 나뉜다.
 //   1) 입력      — 붙여넣은 글을 항목 카드로 나눠 딸들에게 보낸다 (쓰기 전용)
-//   2) 현황 보기 — 딸의 할일을 실시간으로 지켜본다 (읽기 전용)
+//   2) 현황 보기 — 딸의 할일을 실시간으로 지켜본다
 //
-// "현황 보기"는 의도적으로 읽기 전용이다. 체크/수정/삭제는 각자 딸 화면에서만
-// 할 수 있게 두어, 엄마가 대신 체크해 버리는 상황을 막는다.
+// "현황 보기"에서는 완료 체크를 할 수 없다 — 엄마가 대신 체크해 버리는 상황을 막는다.
+// 대신 잘못 보낸 숙제를 고치거나 지울 수는 있다.
 // ---------------------------------------------------------------------------
 import {
   addTodo,
   updateTodo,
+  deleteTodo,
   listenTodos,
+  newImageId,
+  saveImage,
   setCheer,
   listenProfile,
   DEFAULT_PROFILE,
@@ -27,10 +30,12 @@ import {
   splitByCompleted,
   dueLabel,
   countTodo,
-  sortByUrgency,
+  arrangeTodos,
+  SORT_MODES,
 } from "./todo-logic.js";
 import { createDuePicker, createUrgentToggle, urgentIcon } from "./due-picker.js";
-import { createTodoEditor, makeEditDraft } from "./todo-editor.js";
+import { createTodoEditor, makeEditDraft, createItemsEditor } from "./todo-editor.js";
+import { compressPhoto, createPhotoBlock, rememberPhoto } from "./photo.js";
 import { createSticker } from "./stickers.js";
 import { initAppearance } from "./appearance.js";
 import { INPUT_SOURCES, getSource } from "./sources/index.js";
@@ -110,6 +115,16 @@ export function initMom() {
     watchStatus: $("watch-status"),
   };
 
+  const SORT_KEY = "hw.sort.mom";
+  function readSort() {
+    try {
+      const saved = localStorage.getItem(SORT_KEY);
+      return SORT_MODES.some((m) => m.id === saved) ? saved : SORT_MODES[0].id;
+    } catch (_) {
+      return SORT_MODES[0].id;
+    }
+  }
+
   const state = {
     tab: "input",
     sourceId: INPUT_SOURCES[0].id,
@@ -127,6 +142,12 @@ export function initMom() {
     editing: null,
     editDraft: null,
     editorEl: null,
+    // 현황 탭: 지우기 확인 중인 항목 id (한 번 더 눌러야 지운다)
+    confirmDeleteId: null,
+    // 현황 탭 보기 순서: "urgent"(급한 순) | "subject"(과목별). 이 기기에 기억해 둔다.
+    sort: readSort(),
+    // 캡쳐 글을 입력칸에 넣었을 때 그 사진. 그 글로 만드는 카드에 붙인다.
+    pendingPhoto: null,
   };
 
   // --- 작은 도우미 ---------------------------------------------------------
@@ -180,10 +201,17 @@ export function initMom() {
       category: CATEGORIES[0], // 기본값 "숙제"
       subject: SUBJECTS.includes(data.subject) ? data.subject : "기타",
       subjectConfident: data.subjectConfident !== false,
-      items: Array.isArray(data.items) ? data.items.slice() : [],
+      // {text, done} 모양으로 둔다 — 줄 편집기(createItemsEditor)가 이 배열을 직접 고친다
+      items: (Array.isArray(data.items) ? data.items : []).map((t) => ({
+        text: typeof t === "string" ? t : String((t && t.text) || ""),
+        done: false,
+      })),
       memo: data.memo || "",
       // 빈 값 = "다음 수업까지". 학원 숙제는 대부분 그래서 기본값으로 뒀다.
-      date: "",
+      // 학원 표를 글로 붙여넣으면 영역마다 제출일이 따라온다 ("READING (제출 9/15)").
+      date: data.due ? parseDueDate(data.due) : "",
+      // 캡쳐로 만든 카드면 원본 사진 ({blob, previewUrl, ids})
+      photo: data.photo || null,
       urgent: false,
       // 기본값은 둘 다. 한 명만 보낼 때 한 번만 눌러 끄면 된다.
       recipients: { daughter1: true, daughter2: true },
@@ -203,6 +231,7 @@ export function initMom() {
 
     for (const parsed of titles) {
       const draft = makeDraft(parsed);
+      if (state.pendingPhoto) draft.photo = state.pendingPhoto;
       // 학원 메시지 첫 줄이 바로 숙제라서 제목이 비는 경우가 있다
       if (!draft.title) {
         draft.title = (draft.subject !== "기타" ? draft.subject + " " : "") + "숙제";
@@ -210,6 +239,7 @@ export function initMom() {
       state.drafts.push(draft);
     }
     if (els.rawInput) els.rawInput.value = "";
+    state.pendingPhoto = null;
     setInputStatus(
       titles.length === 1
         ? "항목 1개를 담았습니다. 받는 사람을 확인하고 보내주세요."
@@ -301,33 +331,9 @@ export function initMom() {
 
     card.append(head, chips, subjectRow, bottom, dueRow);
 
-    // 세부 항목 — 딸 화면에서 하나씩 체크하게 될 목록. 여기서 지우거나 고칠 수 있다.
-    if (draft.items.length > 0) {
-      const label = makeEl("p", "draft-items-label", "세부 항목 " + draft.items.length + "개");
-      const ul = makeEl("ul", "draft-items");
-      draft.items.forEach((text, index) => {
-        const li = makeEl("li", "draft-item");
-        const input = document.createElement("input");
-        input.type = "text";
-        input.className = "field";
-        input.value = text;
-        input.dataset.action = "item-text";
-        input.dataset.key = draft.key;
-        input.dataset.index = String(index);
-        input.setAttribute("aria-label", "세부 항목 " + (index + 1));
-
-        const del = makeEl("button", "icon-btn", "✕");
-        del.type = "button";
-        del.dataset.action = "item-remove";
-        del.dataset.key = draft.key;
-        del.dataset.index = String(index);
-        del.setAttribute("aria-label", text + " 빼기");
-
-        li.append(input, del);
-        ul.appendChild(li);
-      });
-      card.append(label, ul);
-    }
+    // 세부 항목 — 딸 화면에서 하나씩 체크하게 될 목록. 줄을 넣고 빼고 고칠 수 있다.
+    // 항목이 없어도 편집기를 보여준다 ([+ 줄 추가]로 바로 나눌 수 있게).
+    card.appendChild(createItemsEditor(draft.items));
 
     // 참고 — 교재명, 선생님 안내 등. 캡쳐에서 읽은 글은 틀릴 수 있으므로 고칠 수 있게 둔다.
     if (draft.memo) {
@@ -340,6 +346,20 @@ export function initMom() {
       memo.dataset.key = draft.key;
       memo.setAttribute("aria-label", "참고");
       card.appendChild(memo);
+    }
+
+    // 캡쳐로 만든 카드: 원본 사진이 함께 간다 (딸 화면에서 "원본 사진 펼치기"로 본다)
+    if (draft.photo) {
+      const row = makeEl("div", "draft-photo");
+      const thumb = document.createElement("img");
+      thumb.src = draft.photo.previewUrl;
+      thumb.alt = "";
+      const drop = makeEl("button", "btn btn--ghost btn--small", "사진 빼기");
+      drop.type = "button";
+      drop.dataset.action = "photo-remove";
+      drop.dataset.key = draft.key;
+      row.append(thumb, makeEl("span", "", "원본 사진이 함께 갑니다"), drop);
+      card.appendChild(row);
     }
 
     return card;
@@ -401,14 +421,11 @@ export function initMom() {
         draft.subjectConfident = true;
         renderDrafts();
         break;
-      case "item-text":
-        draft.items[Number(target.dataset.index)] = target.value;
-        break;
       case "memo":
         draft.memo = target.value; // 제목과 같은 이유로 다시 그리지 않는다
         break;
-      case "item-remove":
-        draft.items.splice(Number(target.dataset.index), 1);
+      case "photo-remove":
+        draft.photo = null;
         renderDrafts();
         break;
       case "remove":
@@ -419,13 +436,35 @@ export function initMom() {
     }
   }
 
+  /**
+   * 캡쳐 사진을 받는 아이의 경로에 올리고 id를 돌려준다. 같은 사진은 아이마다 한 번만 올린다
+   * (한 캡쳐에서 숙제 여러 개가 나오므로). 못 올리면 빈 문자열 — 숙제는 사진 없이 보낸다
+   * (보안 규칙을 새로 배포하기 전이거나 사진이 너무 큰 경우).
+   */
+  async function uploadPhoto(photo, studentId) {
+    if (!photo) return "";
+    photo.ids = photo.ids || {};
+    if (typeof photo.ids[studentId] === "string") return photo.ids[studentId];
+    try {
+      photo.dataUrl = photo.dataUrl || (await compressPhoto(photo.blob));
+      const id = newImageId();
+      await saveImage(studentId, id, photo.dataUrl);
+      rememberPhoto(id, photo.dataUrl);
+      photo.ids[studentId] = id;
+    } catch (err) {
+      console.warn("[mom] 원본 사진 저장 실패 (숙제는 사진 없이 보냄)", err);
+      photo.ids[studentId] = "";
+    }
+    return photo.ids[studentId];
+  }
+
   async function handleSend() {
     if (state.sending) return;
 
     const items = state.drafts.map((d) => ({
       ...d,
       title: d.title.trim(),
-      items: d.items.map((t) => String(t).trim()).filter(Boolean),
+      items: d.items.map((it) => String((it && it.text) || "").trim()).filter(Boolean),
     }));
 
     if (items.some((d) => !d.title)) {
@@ -442,9 +481,12 @@ export function initMom() {
     setInputStatus("보내는 중...");
 
     const sentTo = new Set();
+    let photoFailed = false;
     try {
       for (const draft of items) {
         for (const studentId of recipientIds(draft.recipients)) {
+          const imageId = await uploadPhoto(draft.photo, studentId);
+          if (draft.photo && !imageId) photoFailed = true;
           await addTodo(studentId, {
             title: draft.title,
             category: draft.category,
@@ -456,6 +498,7 @@ export function initMom() {
             completed: false,
             addedBy: "mom",
             source: state.sourceId,
+            imageId,
           });
           sentTo.add(studentId);
         }
@@ -464,7 +507,8 @@ export function initMom() {
       state.drafts = [];
       if (els.rawInput) els.rawInput.value = "";
       setInputStatus(
-        buildSentMessage(count, STUDENT_IDS.filter((id) => sentTo.has(id)))
+        buildSentMessage(count, STUDENT_IDS.filter((id) => sentTo.has(id))) +
+          (photoFailed ? " (원본 사진은 저장하지 못했습니다)" : "")
       );
     } catch (err) {
       console.error("[mom] 보내기 실패", err);
@@ -557,15 +601,53 @@ export function initMom() {
       box.appendChild(ul);
     }
     if (todo.memo) box.appendChild(makeEl("p", "watch-memo", "참고: " + todo.memo));
+    if (todo.imageId) box.appendChild(createPhotoBlock(studentId, todo.imageId, renderWatch));
 
+    const actions = makeEl("div", "watch-actions");
     const edit = makeEl("button", "btn btn--ghost btn--small", "내용 고치기");
     edit.type = "button";
     edit.dataset.action = "watch-edit";
     edit.dataset.student = studentId;
     edit.dataset.id = todo.id;
-    box.appendChild(edit);
+    actions.appendChild(edit);
+
+    // 잘못 보낸 숙제 지우기. 되돌릴 수 없으니 한 번 더 누르게 한다 (confirm() 창은 쓰지 않는다)
+    const confirming = state.confirmDeleteId === todo.id;
+    const del = makeEl(
+      "button",
+      "btn btn--ghost btn--small btn--danger-text" + (confirming ? " is-confirming" : ""),
+      confirming ? "정말 지울까요? 한 번 더 누르기" : "지우기"
+    );
+    del.type = "button";
+    del.dataset.action = "watch-delete";
+    del.dataset.student = studentId;
+    del.dataset.id = todo.id;
+    actions.appendChild(del);
+    if (confirming) {
+      const cancel = makeEl("button", "btn btn--ghost btn--small", "취소");
+      cancel.type = "button";
+      cancel.dataset.action = "watch-delete-cancel";
+      actions.appendChild(cancel);
+    }
+    box.appendChild(actions);
 
     return box;
+  }
+
+  /** 현황에서 숙제 하나를 지운다 (잘못 보낸 숙제 등) */
+  async function deleteWatchTodo(studentId, id) {
+    const todo = state.kids[studentId].todos.find((t) => t.id === id);
+    state.confirmDeleteId = null;
+    if (state.editing && state.editing.id === id) closeWatchEditor();
+    try {
+      await deleteTodo(studentId, id, todo && todo.imageId);
+      state.expandedIds.delete(id);
+      state.kids[studentId].cheerNote = "“" + (todo ? todo.title : "숙제") + "” 지웠습니다.";
+    } catch (err) {
+      console.error("[mom] 삭제 실패", err);
+      state.kids[studentId].cheerNote = "지우지 못했습니다. (" + (err.code || err.message) + ")";
+    }
+    renderWatch();
   }
 
   /** 남은 항목 한 줄. 누르면 펼쳐진다. */
@@ -582,6 +664,7 @@ export function initMom() {
         state.editorEl = createTodoEditor(state.editDraft, {
           onSave: (draft) => saveWatchEdit(studentId, draft),
           onCancel: () => { closeWatchEditor(); renderWatch(); },
+          onDelete: () => deleteWatchTodo(studentId, todo.id),
         });
       }
       li.classList.add("is-editing");
@@ -596,7 +679,15 @@ export function initMom() {
     btn.dataset.id = todo.id;
     btn.setAttribute("aria-expanded", String(open));
     if (todo.urgent) btn.appendChild(urgentIcon());
-    btn.appendChild(makeEl("span", "watch-title-text", todo.title));
+    // 제목 앞에 과목 — 제목만 봐도 무슨 과목인지
+    const titleText = makeEl("span", "watch-title-text");
+    if (todo.subject && todo.subject !== "기타") {
+      titleText.appendChild(
+        makeEl("span", "title-subject subject--" + SUBJECT_KEY[todo.subject], todo.subject)
+      );
+    }
+    titleText.appendChild(document.createTextNode(todo.title));
+    btn.appendChild(titleText);
     if (counts.총 > 1) {
       btn.appendChild(makeEl("span", "watch-count", counts.완료 + "/" + counts.총));
     }
@@ -710,7 +801,7 @@ export function initMom() {
     // 남은 항목이 먼저(급한 일이 맨 위), 그 뒤에 완료한 항목.
     // 완료한 것도 목록에 둔다 — 빠지면 엄마가 그 숙제 내용을 고칠 방법이 없다.
     const split = splitByCompleted(todos);
-    const active = sortByUrgency(split.active);
+    const active = split.active;
     const done = split.completed;
     if (kid.error) {
       card.appendChild(makeEl("p", "kid-sub", kid.error));
@@ -720,15 +811,13 @@ export function initMom() {
       card.appendChild(makeEl("p", "kid-sub", "아직 할 일이 없습니다."));
     } else if (active.length === 0) {
       card.appendChild(makeEl("p", "kid-sub", "남은 할 일이 없어요 🎉"));
-      const ul = makeEl("ul", "watch-list");
-      for (const todo of done) ul.appendChild(renderWatchRow(studentId, todo));
-      card.appendChild(ul);
+      card.appendChild(renderWatchList(studentId, done));
     } else {
       const showAll = state.showAll[studentId];
-      const shown = showAll ? active.concat(done) : active.slice(0, PREVIEW_COUNT);
-      const ul = makeEl("ul", "watch-list");
-      for (const todo of shown) ul.appendChild(renderWatchRow(studentId, todo));
-      card.appendChild(ul);
+      // 보기 순서(급한 순 / 과목별)대로 늘어놓은 뒤 앞에서부터 몇 개만 보인다
+      const ordered = arrangeTodos(active, state.sort).flatMap((g) => g.todos);
+      const shown = showAll ? ordered.concat(done) : ordered.slice(0, PREVIEW_COUNT);
+      card.appendChild(renderWatchList(studentId, shown));
 
       const hidden = active.length - Math.min(active.length, PREVIEW_COUNT) + done.length;
       if (hidden > 0 || showAll) {
@@ -751,8 +840,58 @@ export function initMom() {
     return card;
   }
 
+  /**
+   * 현황 목록. 과목별 보기면 과목이 바뀔 때마다 머리글을 단다.
+   * (완료한 것은 뒤에 붙어 오므로, 과목 머리글은 남은 것에만 단다)
+   */
+  function renderWatchList(studentId, todos) {
+    const ul = makeEl("ul", "watch-list");
+    let lastSubject = null;
+    for (const todo of todos) {
+      if (state.sort === "subject" && !todo.completed) {
+        const subject = SUBJECTS.includes(todo.subject) ? todo.subject : "기타";
+        if (subject !== lastSubject) {
+          const head = makeEl("li", "list-group-head");
+          head.appendChild(makeEl("span", "title-subject subject--" + SUBJECT_KEY[subject], subject));
+          ul.appendChild(head);
+          lastSubject = subject;
+        }
+      }
+      ul.appendChild(renderWatchRow(studentId, todo));
+    }
+    return ul;
+  }
+
+  /** 보기 순서 단추 (두 아이 공통). 아이 카드들 바로 위에 한 번만 만들어 둔다. */
+  function renderWatchSortBar() {
+    if (!els.kidCards) return;
+    if (!els.sortBar) {
+      els.sortBar = makeEl("div", "sort-bar");
+      els.sortBar.setAttribute("role", "group");
+      els.sortBar.setAttribute("aria-label", "보기 순서");
+      els.sortBar.addEventListener("click", (e) => {
+        const btn = e.target.closest("[data-sort]");
+        if (!btn) return;
+        state.sort = btn.dataset.sort;
+        try { localStorage.setItem(SORT_KEY, state.sort); } catch (_) { /* 이번엔 된다 */ }
+        renderWatch();
+      });
+      els.kidCards.insertAdjacentElement("beforebegin", els.sortBar);
+    }
+    els.sortBar.textContent = "";
+    els.sortBar.appendChild(makeEl("span", "sort-label", "보기"));
+    for (const mode of SORT_MODES) {
+      const btn = makeEl("button", "sort-btn", mode.label);
+      btn.type = "button";
+      btn.dataset.sort = mode.id;
+      btn.setAttribute("aria-pressed", String(state.sort === mode.id));
+      els.sortBar.appendChild(btn);
+    }
+  }
+
   function renderWatch() {
     if (!els.kidCards) return;
+    renderWatchSortBar();
     els.kidCards.textContent = "";
     for (const id of STUDENT_IDS) els.kidCards.appendChild(renderKidCard(id));
   }
@@ -891,6 +1030,9 @@ export function initMom() {
 
       // 칸이 나뉜 숙제표면 칸 구조를 그대로 살려 카드를 만든다.
       // (글로 바꿨다가 다시 나누면 칸 경계가 또 뭉개진다)
+      // 이 캡쳐로 만드는 카드에는 원본 사진이 함께 간다
+      const photo = { blob: file, previewUrl: URL.createObjectURL(file) };
+
       if (sections && sections.length > 0) {
         const guessed = [];
         for (const section of sections) {
@@ -899,6 +1041,7 @@ export function initMom() {
             items: section.items,
             memo: section.memo,
             subject: section.subject,
+            photo,
           });
           draft.date = parseDueDate(section.date);
           if (section.dateGuessed && draft.date) guessed.push(section.name || "이름 없는 칸");
@@ -921,6 +1064,7 @@ export function initMom() {
       // 표가 아니면 읽은 글을 입력창에 넣고, 평소처럼 나누게 한다
       const box = els.rawInput;
       box.value = box.value.trim() ? box.value.trim() + "\n" + text : text;
+      state.pendingPhoto = photo; // 이 글로 만드는 카드에 사진을 붙인다
       setOcrStatus(
         "읽었습니다 (정확도 " + Math.round(confidence) + "%). 틀린 글자는 고친 뒤 눌러주세요."
       );
@@ -958,6 +1102,7 @@ export function initMom() {
   if (els.clearBtn) {
     els.clearBtn.addEventListener("click", () => {
       state.drafts = [];
+      state.pendingPhoto = null;
       if (els.rawInput) els.rawInput.value = "";
       setInputStatus("모두 지웠습니다.");
       renderDrafts();
@@ -994,6 +1139,18 @@ export function initMom() {
         case "watch-edit":
           closeWatchEditor();
           state.editing = { studentId: btn.dataset.student, id: btn.dataset.id };
+          renderWatch();
+          break;
+        case "watch-delete":
+          if (state.confirmDeleteId !== btn.dataset.id) {
+            state.confirmDeleteId = btn.dataset.id;
+            renderWatch();
+          } else {
+            deleteWatchTodo(btn.dataset.student, btn.dataset.id);
+          }
+          break;
+        case "watch-delete-cancel":
+          state.confirmDeleteId = null;
           renderWatch();
           break;
       }

@@ -210,14 +210,47 @@ export function newFromMom(seen, todos) {
   return (todos || []).filter((t) => t && t.addedBy === "mom" && !seen.has(t.id));
 }
 
+// --- 보기 순서 ----------------------------------------------------------------
+// 목록을 "급한 순" 또는 "과목별"로 볼 수 있다. 딸 화면과 엄마 현황이 같은 규칙을 쓴다.
+
+export const SORT_MODES = [
+  { id: "urgent", label: "급한 순" },
+  { id: "subject", label: "과목별" },
+];
+
+/** 과목 순서 (과목별 보기의 묶음 순서). db.js의 SUBJECTS와 같다. */
+const SUBJECT_ORDER = ["수학", "영어", "과학", "국어", "사회", "기타"];
+
 /**
- * 긴급 → 나머지 순으로 정렬한다. 같은 급 안의 순서는 그대로 둔다.
- * (원본 배열은 건드리지 않는다)
+ * 급한 순: 급한 일 → 마감이 이른 것 → 날짜 없는 것("다음 수업까지").
+ * 같으면 원래 순서(최신순) 그대로. (원본 배열은 건드리지 않는다)
  */
-export function sortByUrgency(todos) {
-  const list = (todos || []).slice();
-  return list
+export function sortByDeadline(todos) {
+  const rank = (t) =>
+    typeof t.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(t.date) ? t.date : "9999-99-99";
+  return (todos || [])
     .map((t, i) => ({ t, i }))
-    .sort((a, b) => (b.t.urgent === true) - (a.t.urgent === true) || a.i - b.i)
+    .sort(
+      (a, b) =>
+        (b.t.urgent === true) - (a.t.urgent === true) ||
+        (rank(a.t) < rank(b.t) ? -1 : rank(a.t) > rank(b.t) ? 1 : 0) ||
+        a.i - b.i
+    )
     .map((x) => x.t);
+}
+
+/**
+ * 보기 방식대로 묶는다. 화면은 묶음마다 머리글(과목 이름)을 붙여 그린다.
+ * @param {"urgent"|"subject"} mode
+ * @returns {Array<{subject: string|null, todos: object[]}>} 급한 순이면 묶음 하나(subject=null)
+ */
+export function arrangeTodos(todos, mode) {
+  const sorted = sortByDeadline(todos);
+  if (mode !== "subject") return sorted.length ? [{ subject: null, todos: sorted }] : [];
+  const groups = [];
+  for (const subject of SUBJECT_ORDER) {
+    const inGroup = sorted.filter((t) => (SUBJECT_ORDER.includes(t.subject) ? t.subject : "기타") === subject);
+    if (inGroup.length) groups.push({ subject, todos: inGroup });
+  }
+  return groups;
 }

@@ -15,6 +15,8 @@ import {
   MAX_NAME_LENGTH,
   CATEGORIES,
   SUBJECTS,
+  newImageId,
+  saveImage,
 } from "./db.js";
 import {
   ALL,
@@ -29,10 +31,11 @@ import {
   allItemsDone,
   sameDay,
   dueLabel,
-  sortByUrgency,
   selectToday,
   shiftDate,
   newFromMom,
+  arrangeTodos,
+  SORT_MODES,
 } from "./todo-logic.js";
 import { createDuePicker, createUrgentToggle, urgentIcon } from "./due-picker.js";
 import { createTodoEditor, makeEditDraft } from "./todo-editor.js";
@@ -42,6 +45,7 @@ import { recognizeImage, imageFromPaste, parseDueDate } from "./ocr.js";
 import { initRewards } from "./rewards.js";
 import { createSticker, STICKERS, GROUPS } from "./stickers.js";
 import { showNotice } from "./notice.js";
+import { compressPhoto, createPhotoBlock, rememberPhoto } from "./photo.js";
 
 // 순수 로직은 todo-logic.js, 입력 파싱은 sources/ 아래로 분리되어 있다.
 // 콘솔이나 다른 화면에서 쓰기 편하도록 여기서 다시 내보낸다.
@@ -102,6 +106,16 @@ export function initApp(studentId) {
     status: $("status"),
   };
 
+  const SORT_KEY = "hw.sort." + studentId;
+  function readSort() {
+    try {
+      const saved = localStorage.getItem(SORT_KEY);
+      return SORT_MODES.some((m) => m.id === saved) ? saved : SORT_MODES[0].id;
+    } catch (_) {
+      return SORT_MODES[0].id;
+    }
+  }
+
   const state = {
     todos: [],          // listenTodos가 넘겨준 원본 (최신순)
     filter: ALL,
@@ -116,6 +130,10 @@ export function initApp(studentId) {
     profile: null,      // { name, icon } — 화면 제목에 쓴다
     confirmingId: null, // 삭제 확인 대기 중인 항목
     confirmingAll: false,
+    // 보기 순서: "urgent"(급한 순) | "subject"(과목별). 이 기기에 기억해 둔다.
+    sort: readSort(),
+    // 캡쳐 글을 입력칸에 넣었을 때 그 사진. 그 글로 추가하는 할일에 붙인다.
+    pendingPhoto: null,
     // 직전 구독에서 보고 있던 id들. null이면 아직 첫 목록을 못 받았다는 뜻이라,
     // 앱을 열 때 예전 숙제까지 "새로 왔다"고 알리지 않는다.
     seenIds: null,
@@ -301,15 +319,17 @@ export function initApp(studentId) {
     main.dataset.action = "edit";
     main.dataset.id = todo.id;
     main.setAttribute("aria-label", todo.title + " 수정");
-    main.appendChild(makeEl("span", "todo-title", todo.title));
-
-    const meta = makeEl("span", "todo-meta");
-    // 과목이 있으면 과목을 먼저 보여준다 (수학/영어/과학...)
+    // 제목 앞에 과목을 붙인다 — 제목만 봐도 무슨 과목인지 알 수 있게 (수학/영어/과학...)
+    const titleEl = makeEl("span", "todo-title");
     if (todo.subject && todo.subject !== "기타") {
-      meta.appendChild(
-        makeEl("span", "badge badge--subject subject--" + SUBJECT_KEY[todo.subject], todo.subject)
+      titleEl.appendChild(
+        makeEl("span", "title-subject subject--" + SUBJECT_KEY[todo.subject], todo.subject)
       );
     }
+    titleEl.appendChild(document.createTextNode(todo.title));
+    main.appendChild(titleEl);
+
+    const meta = makeEl("span", "todo-meta");
     meta.appendChild(
       makeEl("span", "badge badge--" + CATEGORY_KEY[todo.category], todo.category)
     );
@@ -402,6 +422,9 @@ export function initApp(studentId) {
       if (todo.memo) li.appendChild(makeEl("p", "todo-note", todo.memo));
     }
 
+    // 캡쳐로 만든 숙제는 원본 사진을 펼쳐 볼 수 있다 (OCR이 잘못 읽었을 때 대조용)
+    if (todo.imageId) li.appendChild(createPhotoBlock(studentId, todo.imageId, render));
+
     return li;
   }
 
@@ -412,17 +435,57 @@ export function initApp(studentId) {
       container.appendChild(makeEl("li", "empty", emptyText));
       return;
     }
-    todos.forEach((todo, i) => container.appendChild(renderItem(todo, i, options)));
+    // 보기 순서(급한 순 / 과목별). 과목별이면 과목마다 머리글을 단다.
+    let i = 0;
+    for (const group of arrangeTodos(todos, state.sort)) {
+      if (group.subject) {
+        const head = makeEl("li", "list-group-head");
+        head.appendChild(
+          makeEl("span", "title-subject subject--" + SUBJECT_KEY[group.subject], group.subject)
+        );
+        head.appendChild(document.createTextNode(group.todos.length + "개"));
+        container.appendChild(head);
+      }
+      for (const todo of group.todos) container.appendChild(renderItem(todo, i++, options));
+    }
+  }
+
+  /** 보기 순서 단추. 필터 줄 바로 아래에 한 번만 만들어 둔다 (두 딸 화면 HTML은 그대로). */
+  function renderSortBar() {
+    if (!els.sortBar) {
+      if (!els.filters) return;
+      els.sortBar = makeEl("div", "sort-bar");
+      els.sortBar.setAttribute("role", "group");
+      els.sortBar.setAttribute("aria-label", "보기 순서");
+      els.sortBar.addEventListener("click", (e) => {
+        const btn = e.target.closest("[data-sort]");
+        if (!btn) return;
+        state.sort = btn.dataset.sort;
+        try { localStorage.setItem(SORT_KEY, state.sort); } catch (_) { /* 저장 못 해도 이번엔 된다 */ }
+        render();
+      });
+      els.filters.insertAdjacentElement("afterend", els.sortBar);
+    }
+    els.sortBar.textContent = "";
+    els.sortBar.appendChild(makeEl("span", "sort-label", "보기"));
+    for (const mode of SORT_MODES) {
+      const btn = makeEl("button", "sort-btn", mode.label);
+      btn.type = "button";
+      btn.dataset.sort = mode.id;
+      btn.setAttribute("aria-pressed", String(state.sort === mode.id));
+      els.sortBar.appendChild(btn);
+    }
   }
 
   function render() {
     const visible = filterByCategory(state.todos, state.filter);
     const split = splitByCompleted(visible);
-    // 급한 일이 맨 위로 (같은 급 안에서는 원래 순서 그대로)
-    const active = sortByUrgency(split.active);
+    // 순서(급한 순 / 과목별)는 renderList가 state.sort로 정한다
+    const active = split.active;
     const completed = split.completed;
 
     renderFilters();
+    renderSortBar();
     renderProgress();
 
     // 오늘 몫과 나머지로 나눈다. 오늘 몫만 진행 링과 스티커의 분모가 된다.
@@ -572,7 +635,8 @@ export function initApp(studentId) {
 
   async function handleDelete(id) {
     try {
-      await deleteTodo(studentId, id);
+      const todo = state.todos.find((t) => t.id === id);
+      await deleteTodo(studentId, id, todo && todo.imageId);
       state.confirmingId = null;
       setStatus("지웠어요.");
     } catch (err) {
@@ -633,6 +697,8 @@ export function initApp(studentId) {
     els.quickAddBtn.disabled = true;
     els.quickAddBtn.textContent = "추가 중...";
     try {
+      // 캡쳐에서 읽은 글이면 그 사진을 함께 붙인다
+      const imageId = await uploadPhoto(state.pendingPhoto);
       // 순서대로 넣어야 createdAt 순서가 입력 순서와 맞는다.
       for (const parsed of parsedList) {
         const data = typeof parsed === "string" ? { title: parsed } : parsed || {};
@@ -646,13 +712,16 @@ export function initApp(studentId) {
           subject,
           items: Array.isArray(data.items) ? data.items : [],
           memo: data.memo || "",
-          date,
+          // 학원 표를 글로 붙여넣으면 영역마다 제출일이 따라온다 ("READING (제출 9/15)")
+          date: (data.due && parseDueDate(data.due)) || date,
           urgent: state.quickUrgent,
           completed: false,
           addedBy: "self",
           source: state.sourceId,
+          imageId,
         });
       }
+      state.pendingPhoto = null;
       els.quickInput.value = "";
       resetQuickDue();
       setOcrStatus("");
@@ -668,6 +737,27 @@ export function initApp(studentId) {
   }
 
   // --- 캡쳐 이미지에서 글자 읽기 -------------------------------------------
+
+  /**
+   * 캡쳐 사진을 줄여 올리고 id를 돌려준다. 한 번 올린 사진은 다시 올리지 않는다.
+   * 못 올리면(보안 규칙 배포 전, 사진이 너무 큼 등) 빈 문자열 — 숙제는 사진 없이 저장한다.
+   * @param {{blob: Blob, id?: string}|null} photo
+   */
+  async function uploadPhoto(photo) {
+    if (!photo) return "";
+    if (typeof photo.id === "string") return photo.id;
+    try {
+      const dataUrl = await compressPhoto(photo.blob);
+      const id = newImageId();
+      await saveImage(studentId, id, dataUrl);
+      rememberPhoto(id, dataUrl);
+      photo.id = id;
+    } catch (err) {
+      console.warn("[app:" + studentId + "] 원본 사진 저장 실패 (숙제는 사진 없이 저장)", err);
+      photo.id = "";
+    }
+    return photo.id;
+  }
 
   function setOcrStatus(message, isError) {
     if (!els.quickOcrStatus) return;
@@ -688,10 +778,13 @@ export function initApp(studentId) {
         return;
       }
 
+      const photo = { blob: file };
+
       // 칸이 나뉜 숙제표면 칸 구조를 그대로 살려 바로 할 일로 만든다
       if (sections && sections.length > 0) {
         setOcrStatus("표에서 숙제 " + sections.length + "개를 넣는 중...");
         const category = els.quickCategory ? els.quickCategory.dataset.value : CATEGORIES[0];
+        const imageId = await uploadPhoto(photo);
         for (const section of sections) {
           const subject = section.subject || "기타";
           await addTodo(studentId, {
@@ -706,6 +799,7 @@ export function initApp(studentId) {
             completed: false,
             addedBy: "self",
             source: "academy",
+            imageId,
           });
         }
         setOcrStatus(
@@ -719,6 +813,7 @@ export function initApp(studentId) {
 
       const box = els.quickInput;
       box.value = box.value.trim() ? box.value.trim() + "\n" + text : text;
+      state.pendingPhoto = photo; // 이 글로 추가하는 할일에 사진을 붙인다
       setOcrStatus("읽었어요 (정확도 " + Math.round(confidence) + "%). 틀린 글자는 고쳐주세요.");
       box.focus();
     } catch (err) {
