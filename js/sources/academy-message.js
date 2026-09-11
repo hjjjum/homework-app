@@ -95,6 +95,154 @@ const ITEM_PATTERNS = [
 const SECTION_PATTERN =
   /^(READING|LISTENING|GRAMMAR|SPEAKING|WRITING|NOVEL|IB|VOCAB(?:ULARY)?|단어\s*\(?Vocabulary\)?|단어|어휘|본문|문법|독해)\b\s*[:|]?\s*/i;
 
+/**
+ * 둘째(채이) 영어학원 숙제표의 영역 6개. 표 캡쳐든 붙여넣은 글이든 이 이름·순서로 맞춘다.
+ * aliases 는 대문자·기호 없앤 모양. OCR이 "IB"를 "18"로 읽는 일이 잦아 그런 것도 넣었다.
+ */
+export const KNOWN_SECTIONS = [
+  { name: "Reading", aliases: ["READING"] },
+  { name: "Novel", aliases: ["NOVEL"] },
+  { name: "IB", aliases: ["IB", "18", "1B", "I8", "LB", "TB"], exact: true },
+  { name: "단어", aliases: ["단어", "VOCABULARY", "VOCAB", "VOCA", "어휘"] },
+  { name: "Grammar", aliases: ["GRAMMAR"] },
+  { name: "Listening", aliases: ["LISTENING"] },
+];
+
+/** 편집 거리 (OCR이 한두 글자 틀린 영역 이름을 알아보려고) */
+function editDistance(a, b) {
+  const row = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    let prev = row[0];
+    row[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const cur = row[j];
+      row[j] = Math.min(row[j] + 1, row[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1));
+      prev = cur;
+    }
+  }
+  return row[b.length];
+}
+
+/**
+ * 영역 이름을 정해진 이름으로 맞춘다: "READING" → "Reading", "단어 (Vocabulary)" → "단어",
+ * "LISTENlNG" → "Listening", "18" → "IB". 모르는 이름이면 빈 문자열.
+ */
+export function canonicalSection(label) {
+  const key = String(label || "").toUpperCase().replace(/[^A-Z0-9가-힣]/g, "");
+  if (!key) return "";
+  for (const section of KNOWN_SECTIONS) {
+    for (const alias of section.aliases) {
+      if (key === alias) return section.name;
+      if (section.exact) continue;
+      // "단어VOCABULARY" 처럼 뒤에 영문 이름이 붙은 것
+      if (/[가-힣]/.test(alias) && key.startsWith(alias) && /^[A-Z]*$/.test(key.slice(alias.length))) {
+        return section.name;
+      }
+      if (alias.length >= 5 && editDistance(key, alias) <= (alias.length >= 8 ? 2 : 1)) {
+        return section.name;
+      }
+    }
+  }
+  return "";
+}
+
+/** 줄 맨 앞의 영역 이름 ("READING", "[NOVEL]", "단어 (Vocabulary)" …) */
+const SECTION_LINE =
+  /^\s*\[?\s*(READING|NOVEL|IB|GRAMMAR|LISTENING|VOCA(?:BULARY)?|단어(?:\s*\(\s*vocabulary\s*\))?)\s*\]?(?=$|[\s:|(\-·])/i;
+/** 제출일: "(제출 9/15)", "제출 9월 15일", 줄 끝의 "9/15" */
+const DUE_PATTERN = /\(?\s*제출\s*(\d{1,2}\s*[/월.]\s*\d{1,2})\s*일?\s*\)?/;
+const DUE_ONLY = /^\(?\s*(\d{1,2}\s*[/월.]\s*\d{1,2})\s*일?\s*\)?$/;
+/** 영역 안의 참고 문장 표시 (번호 항목과 달리 숙제가 아니라 안내다) */
+const NOTE_LINE = /^\s*(?:※|\*+|•|·|●)\s*/;
+/** 번호 항목 (글머리표 - 는 여기 없다: 영역 안에서 - 는 항목으로 본다) */
+const NUMBERED_LINE = /^\s*(?:[①-⑳]|[0-9]️?⃣|\d{1,2}\s*[.)])\s*/;
+
+/** 영역 하나(이름 + 그 아래 줄들)를 숙제 하나로 */
+function parseSectionChunk(name, lines) {
+  const items = [];
+  const memo = [];
+  const books = [];
+  let due = "";
+  const hasNumbers = lines.some((l) => NUMBERED_LINE.test(l));
+  let last = ""; // 직전 줄의 역할: "item" | "memo"
+
+  for (let line of lines) {
+    const dueHit = line.match(DUE_PATTERN);
+    if (dueHit) {
+      due = due || dueHit[1];
+      line = line.replace(DUE_PATTERN, "").trim();
+    }
+    const only = line.match(DUE_ONLY);
+    if (only) {
+      due = due || only[1];
+      continue;
+    }
+    if (!line) continue;
+
+    const book = line.match(/^[[(]([^\])]+)[\])]$/);
+    if (book && /^\[|\]$/.test(line)) {
+      books.push(book[1].trim());
+      last = "";
+      continue;
+    }
+    if (NOTE_LINE.test(line)) {
+      memo.push(line.replace(NOTE_LINE, ""));
+      last = "memo";
+      continue;
+    }
+    const numbered = NUMBERED_LINE.test(line) || /^-\s+/.test(line);
+    const body = line.replace(NUMBERED_LINE, "").replace(/^-\s+/, "").trim();
+    // 이어진 줄: 괄호·소문자로 시작하거나 앞 줄이 , + & 로 끝났을 때
+    const prevText = last === "item" ? items[items.length - 1] : last === "memo" ? memo[memo.length - 1] : "";
+    const wrapped = prevText && (/^[a-z(]/.test(line) || /[,+&]$/.test(prevText));
+
+    if (numbered) {
+      items.push(body);
+      last = "item";
+    } else if (wrapped && last === "item") {
+      items[items.length - 1] += " " + line;
+    } else if (wrapped && last === "memo") {
+      memo[memo.length - 1] += " " + line;
+    } else if (hasNumbers && items.length > 0) {
+      // 번호 목록 뒤의 번호 없는 문장은 선생님 안내다
+      memo.push(line);
+      last = "memo";
+    } else {
+      items.push(body);
+      last = "item";
+    }
+  }
+
+  const memoLines = books.map((b) => "교재: " + b).concat(memo);
+  return { title: name, items: items.filter(Boolean), memo: memoLines.join("\n"), due };
+}
+
+/**
+ * 채이 학원 숙제표처럼 영역(Reading/Novel/IB/단어/Grammar/Listening)이 두 개 이상이면
+ * 영역마다 숙제 하나로 나눈다. 아니면 null (평소처럼 알림장 하나로 읽는다).
+ */
+export function splitKnownSections(text) {
+  const lines = String(text || "").split(/\r?\n/).map((l) => l.trim());
+  const starts = [];
+  lines.forEach((line, i) => {
+    const m = line.match(SECTION_LINE);
+    if (!m) return;
+    const name = canonicalSection(m[1]);
+    if (name) starts.push({ i, name, rest: line.slice(m[0].length).trim() });
+  });
+  if (new Set(starts.map((s) => s.name)).size < 2) return null;
+
+  const whole = detectSubject(text);
+  return starts.map((start, k) => {
+    const end = k + 1 < starts.length ? starts[k + 1].i : lines.length;
+    const chunk = [start.rest, ...lines.slice(start.i + 1, end)].filter(Boolean);
+    const section = parseSectionChunk(start.name, chunk);
+    const own = detectSubject([start.name, ...chunk].join(" "));
+    const subject = own.score > 0 ? own.subject : whole.score > 0 ? whole.subject : "영어";
+    return { ...section, subject, subjectConfident: true };
+  });
+}
+
 /** 번호 없는 줄을 앞 항목에 이어 붙일 때 허용하는 최대 길이 */
 const MAX_APPEND_LENGTH = 140;
 
@@ -176,6 +324,10 @@ function matchSection(line) {
  */
 export function parseAcademyMessage(text) {
   if (typeof text !== "string") return [];
+
+  // 영역이 여럿인 학원 숙제표(Reading/Novel/IB/…)는 영역마다 숙제 하나로 나눈다
+  const split = splitKnownSections(text);
+  if (split) return split;
 
   const rawLines = text.split(/\r?\n/).map((l) => l.trim());
   const lines = rawLines.filter((l, i) => l !== "" || rawLines[i - 1] !== "");

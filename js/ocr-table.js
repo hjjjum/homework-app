@@ -20,7 +20,7 @@
 //   세로형은 "과제" 행만 숙제이고, 열 머리글이 숙제 제목이 된다.
 // ---------------------------------------------------------------------------
 
-import { detectSubject } from "./sources/academy-message.js";
+import { detectSubject, canonicalSection } from "./sources/academy-message.js";
 
 // ===========================================================================
 // 1. 칸 격자 찾기
@@ -567,7 +567,9 @@ export function interpretTable(table) {
       const parsed = [];
       for (let c = 1; c <= bodyLast; c++) if (row[c]) parsed.push(parseCell(row[c]));
       const date = hasDateCol ? pickDate(cellText(row[last])) : "";
-      const section = makeSection(labelOf(r), parsed, date);
+      // 영역 이름은 정해진 이름으로 맞춘다 (READING → Reading, OCR이 "18"로 읽은 IB → IB)
+      const label = labelOf(r);
+      const section = makeSection(canonicalSection(label) || label, parsed, date);
       if (!section.items.length && !section.memo) continue;
       // 이름 칸이 비어 있으면 위 칸과 합쳐진(병합된) 칸이다 → 앞 숙제에 이어 붙인다
       const before = sections[sections.length - 1];

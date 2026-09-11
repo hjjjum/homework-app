@@ -91,7 +91,7 @@ const daughter2 = [
 
 test("둘째 표: 영역 4개, 머리글 행은 버린다", () => {
   const s = interpretTable(daughter2);
-  assert.deepEqual(s.map((x) => x.name), ["READING", "NOVEL", "IB", "단어"]);
+  assert.deepEqual(s.map((x) => x.name), ["Reading", "Novel", "IB", "단어"]);
 });
 
 test("둘째 표: READING 번호 항목 4개, 접힌 줄은 앞 항목에 붙는다", () => {
@@ -134,6 +134,31 @@ test("둘째 표: 가려진 제출일은 표에서 가장 많이 나온 날짜(9
   assert.deepEqual(word.items, ["DAY 4+ HB CH. 4"]);
   assert.equal(word.date, "9/15");
   assert.equal(word.dateGuessed, true);
+});
+
+test("둘째 표 6영역: Grammar·Listening 행도 각각 숙제 하나, OCR이 틀린 영역 이름도 맞춘다", () => {
+  const six = daughter2.concat([
+    row(1846, 2040,
+      [["GRAMMAR", 120, 440, 1920, 1960]],
+      [
+        ["[Grammar Inside 2]", 529, 1100, 1856, 1900, true],
+        ["1. Ch.3 p.40-45 풀고 채점", 531, 1300, 1920, 1968],
+        ["2. 틀린 문제 오답노트", 531, 1250, 1980, 2025],
+      ],
+      [["9/15", 2861, 2962, 1920, 1960]]),
+    row(2054, 2200,
+      [["LISTENlNG", 120, 440, 2110, 2150]],       // I 대신 l 로 읽힌 경우
+      [["Unit 5 받아쓰기", 531, 1000, 2110, 2150]],
+      [["9/17", 2861, 2962, 2110, 2150]]),
+  ]);
+  // IB 칸이 "18"로 읽힌 경우도
+  six[3][1].lines[0].text = "18";
+  const s = interpretTable(six);
+  assert.deepEqual(s.map((x) => x.name), ["Reading", "Novel", "IB", "단어", "Grammar", "Listening"]);
+  assert.deepEqual(s[4].items, ["Ch.3 p.40-45 풀고 채점", "틀린 문제 오답노트"]);
+  assert.equal(s[4].memo, "교재: Grammar Inside 2");
+  assert.deepEqual(s[5].items, ["Unit 5 받아쓰기"]);
+  assert.equal(s[5].date, "9/17");
 });
 
 test("둘째 표: 과목은 영어", () => {
