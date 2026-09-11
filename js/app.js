@@ -325,7 +325,10 @@ export function initApp(studentId) {
         makeEl("span", "item-count", counts.완료 + "/" + counts.총)
       );
     }
-    if (todo.memo) meta.appendChild(makeEl("span", "memo", todo.memo));
+    // 세부 항목이 있는 숙제의 참고(교재명, 선생님 안내)는 목록 아래에 따로 보여준다.
+    // 한 줄 요약에 끼워 넣으면 긴 안내문이 제목 줄을 짓누른다.
+    const hasSubItems = Array.isArray(todo.items) && todo.items.length > 0;
+    if (todo.memo && !hasSubItems) meta.appendChild(makeEl("span", "memo", todo.memo));
 
     main.appendChild(meta);
 
@@ -396,6 +399,7 @@ export function initApp(studentId) {
         ul.appendChild(sub);
       });
       li.appendChild(ul);
+      if (todo.memo) li.appendChild(makeEl("p", "todo-note", todo.memo));
     }
 
     return li;
@@ -685,19 +689,17 @@ export function initApp(studentId) {
       }
 
       // 칸이 나뉜 숙제표면 칸 구조를 그대로 살려 바로 할 일로 만든다
-      if (sections && sections.length >= 2) {
+      if (sections && sections.length > 0) {
         setOcrStatus("표에서 숙제 " + sections.length + "개를 넣는 중...");
         const category = els.quickCategory ? els.quickCategory.dataset.value : CATEGORIES[0];
         for (const section of sections) {
-          const guessed = getSource("academy").parse(
-            [section.name, ...section.lines].join(" ")
-          );
-          const subject = guessed.length ? guessed[0].subject : "기타";
+          const subject = section.subject || "기타";
           await addTodo(studentId, {
             title: section.name || (subject !== "기타" ? subject + " 숙제" : "숙제"),
             category,
             subject,
-            items: section.lines,
+            items: section.items,
+            memo: section.memo,
             // 표에 날짜가 적혀 있으면 그 날짜가 마감일이 된다 (없으면 다음 수업까지)
             date: parseDueDate(section.date) || state.quickDate,
             urgent: state.quickUrgent,

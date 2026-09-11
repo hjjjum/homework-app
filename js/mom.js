@@ -329,8 +329,17 @@ export function initMom() {
       card.append(label, ul);
     }
 
+    // 참고 — 교재명, 선생님 안내 등. 캡쳐에서 읽은 글은 틀릴 수 있으므로 고칠 수 있게 둔다.
     if (draft.memo) {
-      card.appendChild(makeEl("p", "draft-memo", "참고: " + draft.memo.split("\n").join(" ")));
+      card.appendChild(makeEl("p", "draft-items-label", "참고"));
+      const memo = document.createElement("textarea");
+      memo.className = "field draft-memo";
+      memo.rows = Math.min(draft.memo.split("\n").length + 1, 6);
+      memo.value = draft.memo;
+      memo.dataset.action = "memo";
+      memo.dataset.key = draft.key;
+      memo.setAttribute("aria-label", "참고");
+      card.appendChild(memo);
     }
 
     return card;
@@ -394,6 +403,9 @@ export function initMom() {
         break;
       case "item-text":
         draft.items[Number(target.dataset.index)] = target.value;
+        break;
+      case "memo":
+        draft.memo = target.value; // 제목과 같은 이유로 다시 그리지 않는다
         break;
       case "item-remove":
         draft.items.splice(Number(target.dataset.index), 1);
@@ -865,13 +877,6 @@ export function initMom() {
     els.ocrStatus.dataset.error = isError ? "true" : "false";
   }
 
-  /** 표 한 칸의 내용으로 과목을 추측한다 (학원 메시지 파서의 판단을 그대로 쓴다) */
-  function detectSubjectOf(section) {
-    const text = [section.name, ...section.lines].join(" ");
-    const guessed = getSource("academy").parse(text);
-    return guessed.length ? guessed[0].subject : "기타";
-  }
-
   async function readImage(file) {
     if (!file) return;
     if (els.ocrBtn) els.ocrBtn.disabled = true;
@@ -886,14 +891,17 @@ export function initMom() {
 
       // 칸이 나뉜 숙제표면 칸 구조를 그대로 살려 카드를 만든다.
       // (글로 바꿨다가 다시 나누면 칸 경계가 또 뭉개진다)
-      if (sections && sections.length >= 2) {
+      if (sections && sections.length > 0) {
+        const guessed = [];
         for (const section of sections) {
           const draft = makeDraft({
             title: section.name || "",
-            items: section.lines,
-            subject: detectSubjectOf(section),
+            items: section.items,
+            memo: section.memo,
+            subject: section.subject,
           });
           draft.date = parseDueDate(section.date);
+          if (section.dateGuessed && draft.date) guessed.push(section.name || "이름 없는 칸");
           if (!draft.title) {
             draft.title = (draft.subject !== "기타" ? draft.subject + " " : "") + "숙제";
           }
@@ -901,7 +909,10 @@ export function initMom() {
         }
         setOcrStatus(
           "표에서 숙제 " + sections.length + "개를 만들었습니다 (정확도 " +
-            Math.round(confidence) + "%). 내용을 확인해 주세요."
+            Math.round(confidence) + "%). 내용을 확인해 주세요." +
+            (guessed.length
+              ? " " + guessed.join(", ") + "의 제출일은 가려져 있어서 표의 다른 날짜로 채웠습니다."
+              : "")
         );
         renderDrafts();
         return;

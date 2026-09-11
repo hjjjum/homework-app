@@ -155,8 +155,12 @@ export function createTodoEditor(draft, handlers) {
   itemsBox.append(itemLabel, list, addBtn);
   form.appendChild(itemsBox);
 
-  const memo = document.createElement("input");
-  memo.type = "text";
+  // 표 캡쳐에서 온 참고는 여러 줄(교재명 + 안내)이다. <input>에 넣으면 줄바꿈이
+  // 지워진 채로 저장되므로, 여러 줄이면 textarea로 고친다.
+  const memoMultiline = draft.memo.includes("\n");
+  const memo = document.createElement(memoMultiline ? "textarea" : "input");
+  if (memoMultiline) memo.rows = Math.min(draft.memo.split("\n").length + 1, 6);
+  else memo.type = "text";
   memo.className = "field";
   memo.placeholder = "메모 (선택)";
   memo.value = draft.memo;

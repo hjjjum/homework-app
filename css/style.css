@@ -1284,6 +1284,17 @@ textarea.field {
   text-decoration: line-through;
 }
 
+/* 세부 항목 아래의 참고(교재명·선생님 안내). 줄바꿈을 살린다. */
+.todo-note {
+  margin: 0;
+  padding: 0 14px 12px 44px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-faint);
+  white-space: pre-line;
+  word-break: break-word;
+}
+
 /* --- 엄마 화면: 과목 선택 + 세부 항목 편집 -------------------------------- */
 
 .subject-row {
