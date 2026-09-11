@@ -29,7 +29,7 @@ service cloud.firestore {
           return d.keys().hasOnly(
                    ['title', 'category', 'completed', 'date',
                     'memo', 'addedBy', 'source', 'subject', 'items', 'urgent',
-                    'createdAt', 'updatedAt'])
+                    'imageId', 'createdAt', 'updatedAt'])
               && d.keys().hasAll(['title', 'category', 'completed'])
               && d.title is string
               // 학원 알림장을 통째로 담는 경우가 있어 넉넉히 둔다
@@ -48,6 +48,8 @@ service cloud.firestore {
               && (!('items' in d) || (d.items is list && d.items.size() <= 50))
               // 급한 일 표시
               && (!('urgent' in d) || d.urgent is bool)
+              // 캡쳐로 만든 숙제의 원본 사진 id (students/{studentId}/images/{imageId})
+              && (!('imageId' in d) || (d.imageId is string && d.imageId.size() <= 40))
               && (!('createdAt' in d) || d.createdAt is timestamp)
               && (!('updatedAt' in d) || d.updatedAt is timestamp);
         }
@@ -55,6 +57,22 @@ service cloud.firestore {
         allow read:   if isKnownStudent();
         allow create: if isKnownStudent() && isValidTodo(request.resource.data);
         allow update: if isKnownStudent() && isValidTodo(request.resource.data);
+        allow delete: if isKnownStudent();
+      }
+
+      // students/{studentId}/images/{imageId}
+      // 캡쳐로 숙제를 만들 때 남겨 두는 원본 사진 (JPEG data URL). 화면에서 "펼치기"로 본다.
+      // 한 번 저장하면 고치지 않는다. 문서 한도(1MB) 안에 들도록 앱이 줄여서 올린다.
+      match /images/{imageId} {
+        function isValidImage(d) {
+          return d.keys().hasOnly(['data', 'createdAt'])
+              && d.data is string && d.data.size() > 0 && d.data.size() <= 900000
+              && d.createdAt is timestamp;
+        }
+
+        allow read:   if isKnownStudent();
+        allow create: if isKnownStudent() && isValidImage(request.resource.data);
+        allow update: if false;
         allow delete: if isKnownStudent();
       }
 
