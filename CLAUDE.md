@@ -21,6 +21,7 @@ npx -y serve . -l 3000        # 로컬 서버 (필수 — 아래 참고)
 
 ```bash
 node tools/test-ocr-table.mjs  # 숙제표 캡쳐 해석 (js/ocr-table.js)
+node tools/test-academy.mjs    # 학원 메시지 영역 나누기 + 보기 순서 (sources/academy-message.js, todo-logic.js)
 ```
 
 ### Firestore 규칙 배포
@@ -71,16 +72,25 @@ mom.html        →  js/mom.js  ┤→  js/db.js  →  js/firebase-config.js  �
   그 모듈들에 넣는 편이 검증하기 쉽다.
   `alert()` / `confirm()` / `prompt()`는 쓰지 않는다 — 브라우저 모달이 자동화 세션을 멈추게 하므로,
   삭제 확인은 "한 번 더 누르기", 항목 수정은 인라인 폼으로 처리한다.
+- **js/photo.js** — 캡쳐 원본 사진. `compressPhoto`(문서 한 개에 들어갈 JPEG로 줄이기)와
+  `createPhotoBlock`("원본 사진 펼치기" 단추 + 사진, 딸 화면·엄마 현황 공용). 펼칠 때만 읽고
+  페이지가 기억하며, 사진을 누르면 두 배로 커져 옆으로 밀어 본다(표 글씨가 작아서).
 - **js/stickers.js** — 손으로 좌표를 적어 만든 스티커 56종(8묶음)(CSS 도형, 이미지 파일 없음).
   스티커 판·완료 도장·화면 제목 아이콘이 모두 이 목록을 쓴다.
 - **js/due-picker.js** — 마감일 칩 한 줄(`createDuePicker`)과 급한 일 토글(`createUrgentToggle`).
   엄마 화면·딸 화면·편집 폼이 모두 이것을 쓴다.
-- **js/todo-editor.js** — 이미 저장된 할일 하나를 고치는 인라인 폼(`createTodoEditor`).
-  세부 항목까지 여기서 고친다. 폼 DOM을 만들어 두고 **재사용**해야 한다 —
+- **js/todo-editor.js** — 이미 저장된 할일 하나를 고치는 인라인 폼(`createTodoEditor`)과
+  세부 항목 줄 편집기(`createItemsEditor` — 엄마 화면의 보낼 카드도 같은 것을 쓴다).
+  줄마다 `＋`(아래에 줄 추가)·`✕`(줄 빼기)가 있고, Enter는 커서 자리에서 줄을 **둘로 나눈다**
+  (OCR이 숙제 두 개를 한 줄로 붙여 읽었을 때 쓴다). 빈 줄에서 Backspace는 그 줄을 뺀다.
+  `onDelete`를 넘기면 "지우기"(한 번 더 누르기) 단추가 생긴다. 폼 DOM을 만들어 두고 **재사용**해야 한다 —
   실시간 갱신마다 새로 만들면 입력하던 글자와 커서가 날아간다
   (app.js의 `state.editorEl`, mom.js의 `state.editorEl`이 그 역할).
 - **js/todo-logic.js** — 두 화면이 함께 쓰는 순수 함수(`filterByCategory` / `splitByCompleted` /
-  `calcProgress` / `formatDue`)와 `CATEGORY_KEY`. DOM·Firestore에 의존하지 않으므로 Node에서
+  `calcProgress` / `formatDue` / `arrangeTodos`)와 `CATEGORY_KEY`.
+  **보기 순서**는 `SORT_MODES`(급한 순 / 과목별) 하나로 두 화면이 같이 움직인다.
+  급한 순 = 급한 일 → 마감 이른 것 → 날짜 없는 것("다음 수업까지"). 과목별은 과목마다 묶어
+  머리글을 달아 돌려준다. 고른 값은 기기에 남는다(`hw.sort.<화면>`). DOM·Firestore에 의존하지 않으므로 Node에서
   그대로 테스트할 수 있다. 진행률이나 정렬 규칙을 바꿀 일이 있으면 여기 한 곳만 고치면 두 화면에
   같이 반영된다. app.js가 하위 호환을 위해 이것들을 다시 export 한다.
 - **js/sources/** — "할일을 어디서 얻어오는가"를 담당하는 모듈들. 각 파일은
@@ -90,6 +100,12 @@ mom.html        →  js/mom.js  ┤→  js/db.js  →  js/firebase-config.js  �
   `parse()`는 문자열 배열을 돌려주거나, `{title, subject, items, memo}` 객체 배열을 돌려줘도 된다
   (mom.js의 `makeDraft`가 둘 다 받는다).
   - `academy-message.js` — 학원 카톡 알림장을 읽는다. 기본 입력 방식.
+    **둘째(채이) 영어학원 숙제표의 영역 6개**(Reading / Novel / IB / 단어 / Grammar / Listening)는
+    `KNOWN_SECTIONS`에 이름이 박혀 있고, `canonicalSection()`이 OCR 오타까지 맞춘다
+    ("18"→IB, "GRAMMER"→Grammar, "단어 (Vocabulary)"→단어). 글 안에 이 영역이 **둘 이상** 보이면
+    `splitKnownSections()`가 영역마다 숙제 하나로 나눈다 — 사진으로 찍은 표처럼 칸 격자가 안 잡혀
+    글로만 읽힌 경우에도 6개로 나뉘게 하려는 것이다. 영역 안에서는 `[교재명]`과 `※ * •` 안내를
+    참고로 빼고, "(제출 9/15)"는 마감일이 된다.
     머리말 → 과제 시작 표시(`△ 과제`, `#숙제범위`, `과제 안내`, `Homework`) → 번호 항목
     (`①②` `1️⃣2️⃣` `1.` `1)` `-`, 그리고 `READING`/`NOVEL` 같은 영역 헤더) → 맺음말 구조를 인식하고,
     내용 속 단어로 과목을 추측한다(`SUBJECT_KEYWORDS`). 번호 없는 줄은 앞 항목의 설명으로 붙인다.
@@ -141,7 +157,9 @@ mom.html        →  js/mom.js  ┤→  js/db.js  →  js/firebase-config.js  �
 - **js/mom.js** — 엄마 화면. 입력 탭과 현황 보기 탭 두 개. 현황 탭은 두 아이를 한 화면에
   세로로 놓는다.
   **현황 탭에는 체크박스를 만들지 않는다** — 엄마가 딸 대신 완료 처리를 해버리기 때문이다.
-  완료 여부만 못 건드릴 뿐, 이미 보낸 숙제의 **내용은 고칠 수 있다**
+  완료 여부만 못 건드릴 뿐, 이미 보낸 숙제의 **내용은 고칠 수 있고 지울 수도 있다**
+  (잘못 보낸 숙제를 아이에게 부탁하지 않고 바로 치우기 위한 것. 지우기는 되돌릴 수 없으므로
+  "한 번 더 누르기"로 확인받는다 — `confirm()` 창은 쓰지 않는다)
   (잘못 읽힌 학원 숙제 때문에 지웠다 다시 보내게 하지 않으려는 것. `saveWatchEdit`이
   completed를 patch에 넣지 않는 것이 핵심이다).
   항목을 누르면 세부 내용이 펼쳐지고, 행 오른쪽 ✎로 바로 고친다.
@@ -177,6 +195,15 @@ mom.html        →  js/mom.js  ┤→  js/db.js  →  js/firebase-config.js  �
 (첫째=채원이/달, 둘째=채이/치즈태비)이고, 딸 화면 제목을 눌러 바꾼다.
 `icon`은 stickers.js의 id라서, 스티커가 늘어도 규칙을 다시 배포할 필요가 없다.
 
+- `students/{studentId}/images/{imageId}` — 캡쳐로 숙제를 만들 때 남기는 **원본 사진**
+(`{data: "data:image/jpeg;base64,…", createdAt}`). Storage는 요금제를 올려야 해서 Firestore
+문서에 넣는다. 문서 한도(1MB)에 들도록 `js/photo.js`의 `compressPhoto`가 긴 변 1800px·JPEG로
+줄인다(실측: 586KB 캡쳐 → 229KB, 75ms). **할일 목록 구독에는 끼지 않는다** — 화면에서
+"원본 사진 펼치기"를 누를 때만 한 번 읽고 그 페이지가 기억한다. 한 캡쳐에서 숙제 여러 개가
+나오므로 여러 할일이 같은 사진을 가리키고, 할일을 지울 때 그 사진을 쓰는 할일이 하나도
+안 남으면 사진도 지운다(db.js의 `releaseImage`). 사진 저장이 막히거나 실패해도
+**숙제는 사진 없이 저장된다** — 규칙을 배포하기 전에도 보내기가 막히지 않게 하려는 것이다.
+
 `students/{studentId}` 문서 자체에는 아무것도 쓰지 않는다 (규칙에서도 `allow write: if false`).
   콘솔에서 이 문서가 기울임체로 보이는 건 정상이다.
 - todo 필드: `title`(string), `category`(`"숙제"|"개인스케줄"|"공부"`), `completed`(bool),
@@ -185,6 +212,7 @@ mom.html        →  js/mom.js  ┤→  js/db.js  →  js/firebase-config.js  �
   `subject`(`"수학"|"영어"|"과학"|"국어"|"사회"|"기타"`),
   `items`(list of `{text, done}`, 최대 50개 — 학원 숙제의 세부 항목),
   `urgent`(bool — 급한 일. 목록에서 맨 위로 올라간다),
+  `imageId`(string, 선택 — 캡쳐로 만든 숙제의 원본 사진. 사진이 없으면 **필드 자체를 넣지 않는다**),
   `createdAt` / `updatedAt`(serverTimestamp)
 
 **`date`가 비어 있는 것은 "정하지 않음"이 아니라 "다음 수업까지"라는 뜻이다.** 학원 숙제는
@@ -205,6 +233,9 @@ mom.html        →  js/mom.js  ┤→  js/db.js  →  js/firebase-config.js  �
 1. `js/db.js`의 `normalizeTodo()` (기본값·검증)
 2. `js/db.js`의 `updateTodo()` 안 `allowed` 배열 (허용 필드 화이트리스트)
 3. `firestore.rules`의 `isValidTodo()` — `hasOnly([...])`가 필드 화이트리스트라 새 필드는 여기 없으면 거부된다
+
+(만든 뒤에 고칠 일이 없는 필드는 2번에 넣지 않는다. `imageId`가 그렇다 — 원본 사진은
+숙제를 만들 때 한 번 붙고, 고치기로는 바뀌지 않는다.)
 
 `listenTodos`는 `d.data({ serverTimestamps: "estimate" })`로 읽는다. 오프라인에서 방금 추가한 항목의
 `createdAt`이 `null`이 되어 정렬이 깨지는 걸 막기 위한 것이므로 그냥 `d.data()`로 바꾸지 말 것.
