@@ -10,11 +10,13 @@ import {
   addDoc,
   updateDoc,
   deleteDoc,
+  getDoc,
   getDocs,
   onSnapshot,
   query,
   where,
   orderBy,
+  limit,
   serverTimestamp,
   setDoc,
   writeBatch,
@@ -72,7 +74,7 @@ export function normalizeItems(items) {
  * - 선택 필드(date, memo)는 값이 없으면 빈 문자열로 채움
  */
 function normalizeTodo(todoData) {
-  const { title, category, completed, date, memo, addedBy, source, subject, items, urgent } =
+  const { title, category, completed, date, memo, addedBy, source, subject, items, urgent, imageId } =
     todoData || {};
 
   if (typeof title !== "string" || title.trim() === "") {
@@ -98,6 +100,9 @@ function normalizeTodo(todoData) {
     items: normalizeItems(items),
     // 급한 일 표시. 목록에서 맨 위로 올라가고 눈에 띄는 표시가 붙는다.
     urgent: urgent === true,
+    // 캡쳐로 만든 숙제의 원본 사진 (students/{id}/images/{imageId}). 없으면 필드 자체를 넣지 않는다 —
+    // 보안 규칙을 새로 배포하기 전에도 사진 없는 숙제는 그대로 저장되게 하려는 것이다.
+    ...(typeof imageId === "string" && /^[A-Za-z0-9_-]{1,40}$/.test(imageId) ? { imageId } : {}),
   };
 }
 
@@ -161,10 +166,14 @@ export async function updateTodo(studentId, todoId, changes) {
   await updateDoc(doc(db, "students", studentId, "todos", todoId), patch);
 }
 
-/** 할일 하나 삭제. */
-export async function deleteTodo(studentId, todoId) {
+/**
+ * 할일 하나 삭제.
+ * @param {string} [imageId] 이 할일에 붙은 원본 사진. 다른 할일이 더는 쓰지 않으면 사진도 지운다.
+ */
+export async function deleteTodo(studentId, todoId, imageId) {
   assertStudentId(studentId);
   await deleteDoc(doc(db, "students", studentId, "todos", todoId));
+  if (imageId) await releaseImage(studentId, imageId);
 }
 
 /**
@@ -186,7 +195,56 @@ export async function deleteCompletedTodos(studentId) {
     }
     await batch.commit();
   }
+  const imageIds = new Set(docsToDelete.map((d) => d.get("imageId")).filter(Boolean));
+  for (const imageId of imageIds) await releaseImage(studentId, imageId);
   return docsToDelete.length;
+}
+
+// --- 원본 사진 ---------------------------------------------------------------
+// 경로: students/{studentId}/images/{imageId}  ({ data: "data:image/jpeg;base64,...", createdAt })
+// 캡쳐로 숙제를 만들면 그 사진을 함께 남겨, 화면에서 "원본 사진 펼치기"로 볼 수 있게 한다.
+// Storage 대신 Firestore 문서에 넣는 이유: Storage는 요금제를 올려야 쓸 수 있고,
+// 숙제표 캡쳐는 JPEG로 줄이면 수백 KB라 문서 한도(1MB) 안에 들어간다.
+// 할일 목록 구독(listenTodos)에는 끼지 않는다 — 펼칠 때만 한 번 읽는다.
+// 한 캡쳐에서 숙제 여러 개가 나오므로 여러 할일이 같은 사진을 가리킬 수 있다.
+
+/** 사진 문서 하나의 data URL 최대 길이 (보안 규칙과 맞춰둘 것) */
+export const MAX_IMAGE_CHARS = 900000;
+
+/** 새 사진 id (서버에 묻지 않고 기기에서 만든다) */
+export function newImageId() {
+  return doc(collection(db, "students", STUDENT_IDS[0], "images")).id;
+}
+
+/** 원본 사진 저장 */
+export async function saveImage(studentId, imageId, dataUrl) {
+  assertStudentId(studentId);
+  if (typeof dataUrl !== "string" || dataUrl.length > MAX_IMAGE_CHARS) {
+    throw new Error("사진이 너무 큽니다.");
+  }
+  await setDoc(doc(db, "students", studentId, "images", imageId), {
+    data: dataUrl,
+    createdAt: serverTimestamp(),
+  });
+}
+
+/** 원본 사진 읽기. 없으면 null */
+export async function getImage(studentId, imageId) {
+  assertStudentId(studentId);
+  const snap = await getDoc(doc(db, "students", studentId, "images", imageId));
+  return snap.exists() ? snap.get("data") : null;
+}
+
+/** 이 사진을 가리키는 할일이 하나도 안 남았으면 사진을 지운다. 실패해도 할일 삭제는 이미 끝났다. */
+async function releaseImage(studentId, imageId) {
+  try {
+    const q = query(todosCol(studentId), where("imageId", "==", imageId), limit(1));
+    if ((await getDocs(q)).empty) {
+      await deleteDoc(doc(db, "students", studentId, "images", imageId));
+    }
+  } catch (err) {
+    console.warn("[db] 사진 정리 실패 (무시):", err.code || err.message);
+  }
 }
 
 /**
