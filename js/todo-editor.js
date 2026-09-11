@@ -63,6 +63,110 @@ function chipRow(values, current, className, keyMap, onPick, label) {
 }
 
 /**
+ * 세부 항목 줄 편집기. items 배열({text, done})을 **제자리에서** 고친다.
+ * 엄마 화면의 보낼 카드와 저장된 할일 편집 폼이 같은 것을 쓴다.
+ *   - 줄마다 [＋] 바로 아래에 새 줄, [✕] 그 줄 빼기
+ *   - Enter: 커서 자리에서 줄을 둘로 나눈다 (OCR이 두 숙제를 한 줄로 붙여 읽었을 때)
+ *   - 빈 줄에서 Backspace: 그 줄을 빼고 윗줄로 간다
+ *   - 맨 아래 [+ 줄 추가]
+ * 줄을 넣고 뺄 때 목록 전체를 다시 그리므로, 커서는 새로 그린 뒤 원하는 줄로 옮긴다.
+ * @param {Array<{text: string, done: boolean}>} items
+ * @param {{label?: string}} [options]
+ * @returns {HTMLElement}
+ */
+export function createItemsEditor(items, options) {
+  const opts = options || {};
+  const box = el("div", "edit-items");
+  const label = el("p", "edit-items-label");
+  const list = el("ul", "edit-item-list");
+  const addBtn = el("button", "btn btn--ghost btn--small", "+ 줄 추가");
+  addBtn.type = "button";
+
+  /** 줄을 at 자리에 넣고 그 줄에 커서를 둔다 */
+  function insertAt(at, text, caret) {
+    if (items.length >= MAX_ITEMS) return;
+    items.splice(at, 0, { text: text || "", done: false });
+    draw(at, caret || 0);
+  }
+
+  function removeAt(at, focusAt) {
+    items.splice(at, 1);
+    draw(focusAt, "end");
+  }
+
+  function draw(focusIndex, caret) {
+    list.textContent = "";
+    items.forEach((item, index) => {
+      const li = el("li", "edit-item");
+      const input = document.createElement("input");
+      input.type = "text";
+      input.className = "field";
+      input.value = item.text;
+      input.setAttribute("aria-label", "세부 항목 " + (index + 1));
+      input.addEventListener("input", () => { item.text = input.value; });
+      input.addEventListener("click", (e) => e.stopPropagation());
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.isComposing) {
+          e.preventDefault();
+          const at = input.selectionStart ?? input.value.length;
+          const rest = input.value.slice(at).trim();
+          item.text = input.value.slice(0, at).trim();
+          insertAt(index + 1, rest, 0);
+        } else if (e.key === "Backspace" && input.value === "" && items.length > 0) {
+          e.preventDefault();
+          removeAt(index, Math.max(0, index - 1));
+        }
+      });
+
+      const plus = el("button", "icon-btn icon-btn--small", "＋");
+      plus.type = "button";
+      plus.title = "아래에 줄 추가";
+      plus.setAttribute("aria-label", (index + 1) + "번 아래에 줄 추가");
+      plus.addEventListener("click", (e) => {
+        e.stopPropagation();
+        insertAt(index + 1, "", 0);
+      });
+
+      const del = el("button", "icon-btn icon-btn--small", "✕");
+      del.type = "button";
+      del.title = "이 줄 빼기";
+      del.setAttribute("aria-label", (index + 1) + "번 줄 빼기");
+      del.addEventListener("click", (e) => {
+        e.stopPropagation();
+        removeAt(index, Math.min(index, items.length - 2));
+      });
+
+      li.append(input, plus, del);
+      list.appendChild(li);
+    });
+
+    label.textContent =
+      items.length > 0
+        ? (opts.label || "세부 항목") + " " + items.length + "개"
+        : (opts.label || "세부 항목") + " 없음";
+    addBtn.disabled = items.length >= MAX_ITEMS;
+
+    if (focusIndex != null && focusIndex >= 0) {
+      const input = list.querySelectorAll("input")[focusIndex];
+      if (input) {
+        input.focus();
+        const pos = caret === "end" ? input.value.length : caret || 0;
+        input.setSelectionRange(pos, pos);
+      }
+    }
+  }
+
+  addBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    insertAt(items.length, "", 0);
+  });
+
+  draw(null);
+  box.append(label, list, addBtn);
+  return box;
+}
+
+/**
  * 편집 폼을 만든다.
  * @param {object} draft makeEditDraft()가 만든 사본. 폼이 이 객체를 직접 고친다.
  * @param {{onSave: (draft) => void, onCancel: () => void, onDelete?: () => void,
@@ -103,57 +207,7 @@ export function createTodoEditor(draft, handlers) {
   form.appendChild(dueRow);
 
   // 세부 항목
-  const itemsBox = el("div", "edit-items");
-  const list = el("ul", "edit-item-list");
-
-  function addItemRow(item) {
-    const li = el("li", "edit-item");
-    const input = document.createElement("input");
-    input.type = "text";
-    input.className = "field";
-    input.value = item.text;
-    input.setAttribute("aria-label", "세부 항목");
-    input.addEventListener("input", () => { item.text = input.value; });
-    input.addEventListener("click", (e) => e.stopPropagation());
-
-    const del = el("button", "icon-btn", "✕");
-    del.type = "button";
-    del.setAttribute("aria-label", "이 항목 빼기");
-    del.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const at = draft.items.indexOf(item);
-      if (at >= 0) draft.items.splice(at, 1);
-      li.remove();
-      syncItemLabel();
-    });
-
-    li.append(input, del);
-    list.appendChild(li);
-  }
-
-  const itemLabel = el("p", "edit-items-label");
-  function syncItemLabel() {
-    itemLabel.textContent =
-      draft.items.length > 0 ? "세부 항목 " + draft.items.length + "개" : "세부 항목 없음";
-    addBtn.disabled = draft.items.length >= MAX_ITEMS;
-  }
-
-  const addBtn = el("button", "btn btn--ghost btn--small", "+ 항목 추가");
-  addBtn.type = "button";
-  addBtn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    const item = { text: "", done: false };
-    draft.items.push(item);
-    addItemRow(item);
-    syncItemLabel();
-    const inputs = list.querySelectorAll("input");
-    if (inputs.length) inputs[inputs.length - 1].focus();
-  });
-
-  draft.items.forEach(addItemRow);
-  syncItemLabel();
-  itemsBox.append(itemLabel, list, addBtn);
-  form.appendChild(itemsBox);
+  form.appendChild(createItemsEditor(draft.items));
 
   // 표 캡쳐에서 온 참고는 여러 줄(교재명 + 안내)이다. <input>에 넣으면 줄바꿈이
   // 지워진 채로 저장되므로, 여러 줄이면 textarea로 고친다.
@@ -182,6 +236,24 @@ export function createTodoEditor(draft, handlers) {
     if (on.onCancel) on.onCancel();
   });
   actions.append(save, cancel);
+
+  // 지우기 — 되돌릴 수 없으니 한 번 더 누르게 한다 (confirm() 창은 쓰지 않는다)
+  if (on.onDelete) {
+    const del = el("button", "btn btn--ghost btn--danger-text", "지우기");
+    del.type = "button";
+    let armed = false;
+    del.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (!armed) {
+        armed = true;
+        del.textContent = "정말 지울까요? 한 번 더 누르기";
+        del.classList.add("is-confirming");
+        return;
+      }
+      on.onDelete();
+    });
+    actions.appendChild(del);
+  }
   form.appendChild(actions);
 
   return form;
