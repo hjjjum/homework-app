@@ -351,7 +351,11 @@ export function listenSchedule(studentId, onChange) {
 // **연속 기록은 아이의 기록이라 기기가 바뀌어도 남아야 한다.**
 // 앱을 지웠다 깔거나 폰을 바꿔도 이어지도록 Firestore에 둔다.
 
-/** 연속 기록 저장 */
+/**
+ * 연속 기록 저장.
+ * @param {{streak, best, lastClearDate, resetAt?}} record
+ *   resetAt을 새 값으로 주면 아이 기기가 자기 기록을 버리고 이 값을 따른다 (다시 시작).
+ */
 export async function setStreak(studentId, record) {
   assertStudentId(studentId);
   const streak = Math.max(0, Math.min(10000, Math.round(Number(record && record.streak) || 0)));
@@ -362,7 +366,18 @@ export async function setStreak(studentId, record) {
     streak,
     best,
     lastClearDate,
+    ...(record && record.resetAt ? { resetAt: String(record.resetAt).slice(0, 40) } : {}),
     at: serverTimestamp(),
+  });
+}
+
+/** 연속 기록을 0부터 다시 시작시킨다 (엄마 화면에서 누른다) */
+export async function resetStreak(studentId) {
+  await setStreak(studentId, {
+    streak: 0,
+    best: 0,
+    lastClearDate: "",
+    resetAt: new Date().toISOString(),
   });
 }
 
@@ -380,6 +395,7 @@ export function listenStreak(studentId, onChange) {
         streak: Number(snap.get("streak")) || 0,
         best: Number(snap.get("best")) || 0,
         lastClearDate: snap.get("lastClearDate") || null,
+        resetAt: snap.get("resetAt") || "",
       });
     },
     (err) => {
@@ -387,6 +403,34 @@ export function listenStreak(studentId, onChange) {
       onChange(null);
     }
   );
+}
+
+// --- 저녁 알림 구독 -----------------------------------------------------------
+// 경로: students/{studentId}/push/{subId}  ({ endpoint, p256dh, auth, label, at })
+//
+// 알림을 보내는 쪽은 서버가 아니라 GitHub Actions다(매일 저녁 한 번).
+// 여기에는 "이 기기로 보내 주세요"라는 주소만 담는다. 주소만 알아도 남이 알림을 보낼 수는 없다 —
+// 보내려면 VAPID 비밀 키로 서명해야 하고, 그 키는 저장소가 아니라 GitHub Secrets에 있다.
+
+/** 이 기기의 알림 구독을 저장한다 (같은 기기면 덮어쓴다) */
+export async function savePushSubscription(studentId, subId, sub) {
+  assertStudentId(studentId);
+  if (!sub || typeof sub.endpoint !== "string" || !sub.p256dh || !sub.auth) {
+    throw new Error("알림 구독 정보가 올바르지 않습니다.");
+  }
+  await setDoc(doc(db, "students", studentId, "push", subId), {
+    endpoint: sub.endpoint.slice(0, 500),
+    p256dh: String(sub.p256dh).slice(0, 200),
+    auth: String(sub.auth).slice(0, 100),
+    label: typeof sub.label === "string" ? sub.label.slice(0, 40) : "",
+    at: serverTimestamp(),
+  });
+}
+
+/** 알림 구독 삭제 (알림 끄기) */
+export async function deletePushSubscription(studentId, subId) {
+  assertStudentId(studentId);
+  await deleteDoc(doc(db, "students", studentId, "push", subId));
 }
 
 // --- 응원 한마디 -------------------------------------------------------------

@@ -76,6 +76,25 @@ service cloud.firestore {
         allow delete: if isKnownStudent();
       }
 
+      // students/{studentId}/push/{subId}
+      // 저녁 알림을 받을 기기 주소. 보내는 쪽(GitHub Actions)이 여기를 읽어 알림을 보낸다.
+      // 주소가 노출돼도 VAPID 비밀 키 없이는 알림을 보낼 수 없다.
+      match /push/{subId} {
+        function isValidSub(d) {
+          return d.keys().hasOnly(['endpoint', 'p256dh', 'auth', 'label', 'at'])
+              && d.endpoint is string && d.endpoint.size() > 10 && d.endpoint.size() <= 500
+              && d.p256dh is string && d.p256dh.size() > 0 && d.p256dh.size() <= 200
+              && d.auth is string && d.auth.size() > 0 && d.auth.size() <= 100
+              && (!('label' in d) || (d.label is string && d.label.size() <= 40))
+              && d.at is timestamp;
+        }
+
+        allow read:   if isKnownStudent();
+        allow create: if isKnownStudent() && isValidSub(request.resource.data);
+        allow update: if isKnownStudent() && isValidSub(request.resource.data);
+        allow delete: if isKnownStudent();
+      }
+
       // students/{studentId}/meta/{docId}
       // cheer  = 엄마의 응원 한마디 (오늘 하루만 띄운다)
       // profile = 화면 제목에 쓰는 이름과 아이콘
@@ -109,12 +128,15 @@ service cloud.firestore {
         // board(스티커 판)는 아직 기기에만 두지만, 나중에 옮길 때 규칙을 다시
         // 배포하지 않도록 여기서 미리 받아 둔다.
         function isValidStreak(d) {
-          return d.keys().hasOnly(['streak', 'best', 'lastClearDate', 'board', 'at'])
+          return d.keys().hasOnly(['streak', 'best', 'lastClearDate', 'board', 'resetAt', 'at'])
               && d.streak is int && d.streak >= 0 && d.streak <= 10000
               && d.best is int && d.best >= 0 && d.best <= 10000
               && (!('lastClearDate' in d)
                   || (d.lastClearDate is string && d.lastClearDate.size() <= 10))
               && (!('board' in d) || (d.board is list && d.board.size() <= 50))
+              // resetAt = "여기서부터 다시 세라"는 표시. 기기가 이 표시를 처음 보면
+              // 자기 기록을 버리고 이 값을 그대로 따른다 (엄마가 0부터 다시 시작시킬 때).
+              && (!('resetAt' in d) || (d.resetAt is string && d.resetAt.size() <= 40))
               && d.at is timestamp;
         }
 

@@ -18,6 +18,7 @@ import {
   listenProfile,
   listenSchedule,
   setSchedule,
+  resetStreak,
   DEFAULT_PROFILE,
   CATEGORIES,
   STUDENT_IDS,
@@ -175,6 +176,8 @@ export function initMom() {
     lastSent: null,
     // 학원 요일 설정을 펼쳐 둔 아이
     scheduleOpen: Object.fromEntries(STUDENT_IDS.map((id) => [id, false])),
+    // 연속 기록 다시 시작을 확인 중인 아이
+    confirmResetId: null,
   };
 
   // --- 학원 표별 보내기 기본값 -------------------------------------------
@@ -973,6 +976,18 @@ export function initMom() {
       }
       box.appendChild(row);
     }
+    // 연속 달성 기록 다시 시작 (되돌릴 수 없으니 한 번 더 누르게 한다)
+    const arming = state.confirmResetId === studentId;
+    const reset = makeEl(
+      "button",
+      "btn btn--ghost btn--small btn--danger-text" + (arming ? " is-confirming" : ""),
+      arming ? "연속 기록을 0으로 되돌릴까요? 한 번 더 누르기" : "연속 기록 다시 시작"
+    );
+    reset.type = "button";
+    reset.dataset.action = "streak-reset";
+    reset.dataset.student = studentId;
+    box.appendChild(reset);
+
     if (kid.scheduleNote) box.appendChild(makeEl("p", "schedule-hint", kid.scheduleNote));
     return box;
   }
@@ -1397,6 +1412,25 @@ export function initMom() {
         case "schedule-day":
           toggleScheduleDay(btn.dataset.student, btn.dataset.subject, Number(btn.dataset.day));
           break;
+        case "streak-reset": {
+          const id = btn.dataset.student;
+          if (state.confirmResetId !== id) {
+            state.confirmResetId = id;
+            renderWatch();
+            break;
+          }
+          state.confirmResetId = null;
+          state.kids[id].scheduleNote = "연속 기록을 되돌리는 중…";
+          renderWatch();
+          resetStreak(id)
+            .then(() => { state.kids[id].scheduleNote = "연속 기록을 0부터 다시 시작합니다."; })
+            .catch((err) => {
+              console.error("[mom] 연속 기록 초기화 실패", err);
+              state.kids[id].scheduleNote = "되돌리지 못했습니다. (" + (err.code || err.message) + ")";
+            })
+            .finally(renderWatch);
+          break;
+        }
       }
     });
   }

@@ -121,6 +121,7 @@ function load(studentId) {
     board: Array.isArray(saved.board) ? saved.board : [],
     streak: Number(saved.streak) || 0,
     best: Number(saved.best) || Number(saved.streak) || 0,   // 최고 기록
+    appliedReset: saved.appliedReset || "",                  // 따라간 "다시 시작" 표시
     lastClearDate: saved.lastClearDate || null,
     theme: saved.theme || (teen ? "lavender" : "strawberry"),
     bg: saved.bg || (teen ? "dots" : "sky"),
@@ -132,6 +133,7 @@ function save(studentId, s) {
   try {
     localStorage.setItem(KEY(studentId), JSON.stringify({
       picked: s.picked, board: s.board, streak: s.streak, best: s.best,
+      appliedReset: s.appliedReset,
       lastClearDate: s.lastClearDate, theme: s.theme, bg: s.bg, font: s.font
     }));
   } catch (e) { /* 사파리 프라이빗 모드 등 — 저장 실패는 무시 */ }
@@ -439,6 +441,17 @@ export function initRewards(studentId, options) {
   // 클라우드 값이 오면 합쳐서 다시 그린다.
   const stopStreak = listenStreak(studentId, (remote) => {
     if (!remote) return;
+    // "여기서부터 다시 세라"는 표시가 처음 보이면 기기 기록을 버리고 그대로 따른다.
+    // (합치기 규칙대로면 기기의 옛 기록이 이겨서 0으로 못 내려간다)
+    if (remote.resetAt && remote.resetAt !== state.appliedReset) {
+      state.streak = remote.streak;
+      state.best = remote.best;
+      state.lastClearDate = remote.lastClearDate;
+      state.appliedReset = remote.resetAt;
+      save(studentId, state);
+      renderPanel();
+      return;
+    }
     const merged = mergeStreak(state, remote);
     if (merged.streak === state.streak && merged.best === state.best &&
         merged.lastClearDate === state.lastClearDate) {
@@ -457,6 +470,7 @@ export function initRewards(studentId, options) {
       streak: state.streak,
       best: state.best,
       lastClearDate: state.lastClearDate,
+      resetAt: state.appliedReset,   // 표시를 그대로 들고 있어야 또 되돌아가지 않는다
     }).catch((err) => console.warn("[rewards] 연속 기록 올리기 실패:", err.code || err.message));
   }
 
