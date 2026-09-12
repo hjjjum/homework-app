@@ -1973,3 +1973,9 @@ textarea.field {
   flex: none;
   margin-right: 8px;
 }
+
+/* 보낸 직후의 "되돌리기" — 안내 문구 옆에 붙는다 */
+.undo-btn {
+  margin-left: 10px;
+  vertical-align: middle;
+}

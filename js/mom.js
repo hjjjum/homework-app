@@ -72,6 +72,22 @@ export function recipientIds(recipients) {
 }
 
 /**
+ * 한 캡쳐에서 나온 영역 이름들로 "이 학원 표"를 가리키는 서명을 만든다.
+ * 채이 영어학원 표는 Reading/Novel/IB/단어…, 채원이 정규 표는 단어/1교시/3교시… 처럼
+ * 영역 조합이 학원마다 뚜렷이 달라서, 이것만으로 "지난번에 누구에게 보냈는지"를 찾을 수 있다.
+ * 영역이 하나뿐이면(보통 카톡 알림장) 서명을 만들지 않는다 — 구분이 안 되기 때문이다.
+ * @param {string[]} names
+ * @returns {string} 못 만들면 빈 문자열
+ */
+export function tableSignature(names) {
+  const clean = (names || [])
+    .map((n) => String(n || "").trim().toLowerCase())
+    .filter(Boolean);
+  const unique = [...new Set(clean)].sort();
+  return unique.length >= 2 ? unique.join("|") : "";
+}
+
+/**
  * 보내기 결과 메시지를 만든다.
  * @param {number} itemCount 보낸 항목 수
  * @param {string[]} studentIds 실제로 받은 딸들
@@ -148,7 +164,49 @@ export function initMom() {
     sort: readSort(),
     // 캡쳐 글을 입력칸에 넣었을 때 그 사진. 그 글로 만드는 카드에 붙인다.
     pendingPhoto: null,
+    // 방금 보낸 것 (되돌리기용): { todos: [{studentId, id, imageId}], drafts: [...] }
+    lastSent: null,
   };
+
+  // --- 학원 표별 보내기 기본값 -------------------------------------------
+  // 같은 학원 표는 늘 같은 아이에게 간다. 한 번 보내고 나면 그 조합을 이 기기에 기억해 두고,
+  // 다음에 같은 표를 넣으면 받는 사람을 미리 맞춰 둔다 (엄마가 매번 고르지 않도록).
+  // 과목은 표 내용으로 그때그때 알아내므로 기억하지 않는다.
+  const PRESET_KEY = "hw.mom.presets";
+
+  function readPresets() {
+    try {
+      return JSON.parse(localStorage.getItem(PRESET_KEY) || "{}") || {};
+    } catch (_) {
+      return {};
+    }
+  }
+
+  function savePreset(signature, draft) {
+    if (!signature) return;
+    try {
+      const all = readPresets();
+      all[signature] = { recipients: { ...draft.recipients }, category: draft.category };
+      localStorage.setItem(PRESET_KEY, JSON.stringify(all));
+    } catch (_) { /* 기억 못 해도 보내기는 된다 */ }
+  }
+
+  /**
+   * 방금 만든 카드들에 지난번 설정을 입힌다.
+   * @returns {string} 화면에 덧붙일 안내 문구 (없으면 빈 문자열)
+   */
+  function applyPreset(drafts) {
+    const signature = tableSignature(drafts.map((d) => d.title));
+    for (const draft of drafts) draft.signature = signature;
+    const preset = signature ? readPresets()[signature] : null;
+    if (!preset) return "";
+    for (const draft of drafts) {
+      draft.recipients = { ...preset.recipients };
+      if (preset.category) draft.category = preset.category;
+    }
+    const names = recipientIds(preset.recipients).map((id) => STUDENT_LABEL[id]);
+    return names.length ? " 지난번처럼 " + names.join(", ") + "에게 가도록 맞춰 뒀습니다." : "";
+  }
 
   // --- 작은 도우미 ---------------------------------------------------------
 
@@ -159,11 +217,53 @@ export function initMom() {
     return el;
   }
 
-  function setInputStatus(message, isError = false) {
+  /**
+   * 입력 탭 아래의 안내 문구.
+   * @param {{undo?: boolean}} [options] undo=true면 "되돌리기" 단추를 함께 보여준다
+   */
+  function setInputStatus(message, isError = false, options) {
     if (!els.inputStatus) return;
     els.inputStatus.textContent = message || "";
     els.inputStatus.dataset.error = isError ? "true" : "false";
     els.inputStatus.hidden = !message;
+    if (options && options.undo && state.lastSent) {
+      const undo = makeEl("button", "btn btn--ghost btn--small undo-btn", "되돌리기");
+      undo.type = "button";
+      undo.addEventListener("click", undoSend);
+      els.inputStatus.appendChild(undo);
+    }
+  }
+
+  /**
+   * 방금 보낸 것을 도로 거둔다 — 딸 화면에서 지우고, 보낼 카드를 그대로 되살린다.
+   * (잘못 보냈을 때 아이에게 지워달라고 하지 않아도 되게. 아이가 벌써 체크했더라도 지워진다)
+   */
+  async function undoSend() {
+    const last = state.lastSent;
+    if (!last) return;
+    state.lastSent = null;
+    setInputStatus("되돌리는 중...");
+    let failed = 0;
+    for (const doc of last.todos) {
+      try {
+        await deleteTodo(doc.studentId, doc.id, doc.imageId);
+      } catch (err) {
+        failed++;
+        console.error("[mom] 되돌리기 실패", err);
+      }
+    }
+    // 카드를 되살린다. 사진은 방금 지워졌을 수 있으니 다시 올리도록 표시를 지운다.
+    state.drafts = last.drafts.map((d) => {
+      if (d.photo) delete d.photo.ids;
+      return d;
+    });
+    setInputStatus(
+      failed === 0
+        ? "되돌렸습니다. 카드를 그대로 되살렸으니 고쳐서 다시 보내세요."
+        : failed + "개를 지우지 못했습니다. 현황 탭에서 확인해 주세요.",
+      failed > 0
+    );
+    renderDrafts();
   }
 
   // --- 입력 탭 -------------------------------------------------------------
@@ -240,10 +340,11 @@ export function initMom() {
     }
     if (els.rawInput) els.rawInput.value = "";
     state.pendingPhoto = null;
+    const preset = applyPreset(state.drafts.slice(-titles.length));
     setInputStatus(
-      titles.length === 1
+      (titles.length === 1
         ? "항목 1개를 담았습니다. 받는 사람을 확인하고 보내주세요."
-        : titles.length + "개 항목으로 나눴습니다. 확인 후 보내주세요."
+        : titles.length + "개 항목으로 나눴습니다. 확인 후 보내주세요.") + preset
     );
     renderDrafts();
   }
@@ -481,13 +582,14 @@ export function initMom() {
     setInputStatus("보내는 중...");
 
     const sentTo = new Set();
+    const sentDocs = [];
     let photoFailed = false;
     try {
       for (const draft of items) {
         for (const studentId of recipientIds(draft.recipients)) {
           const imageId = await uploadPhoto(draft.photo, studentId);
           if (draft.photo && !imageId) photoFailed = true;
-          await addTodo(studentId, {
+          const id = await addTodo(studentId, {
             title: draft.title,
             category: draft.category,
             subject: draft.subject,
@@ -500,15 +602,23 @@ export function initMom() {
             source: state.sourceId,
             imageId,
           });
+          sentDocs.push({ studentId, id, imageId });
           sentTo.add(studentId);
         }
       }
       const count = items.length;
+      // 같은 표를 다음에 또 넣으면 이 받는 사람이 미리 잡히도록 기억해 둔다
+      const signed = state.drafts.find((d) => d.signature);
+      if (signed) savePreset(signed.signature, signed);
+      // 되돌리기용으로 보낸 문서와 카드를 들고 있는다
+      state.lastSent = { todos: sentDocs, drafts: state.drafts };
       state.drafts = [];
       if (els.rawInput) els.rawInput.value = "";
       setInputStatus(
         buildSentMessage(count, STUDENT_IDS.filter((id) => sentTo.has(id))) +
-          (photoFailed ? " (원본 사진은 저장하지 못했습니다)" : "")
+          (photoFailed ? " (원본 사진은 저장하지 못했습니다)" : ""),
+        false,
+        { undo: true }
       );
     } catch (err) {
       console.error("[mom] 보내기 실패", err);
@@ -1050,12 +1160,14 @@ export function initMom() {
           }
           state.drafts.push(draft);
         }
+        const preset = applyPreset(state.drafts.slice(-sections.length));
         setOcrStatus(
           "표에서 숙제 " + sections.length + "개를 만들었습니다 (정확도 " +
             Math.round(confidence) + "%). 내용을 확인해 주세요." +
             (guessed.length
               ? " " + guessed.join(", ") + "의 제출일은 가려져 있어서 표의 다른 날짜로 채웠습니다."
-              : "")
+              : "") +
+            preset
         );
         renderDrafts();
         return;
