@@ -296,6 +296,66 @@ export function suggestAhead(todos, today = new Date(), schedule, options) {
   return out.sort((a, b) => b.남은항목 / b.남은날 - a.남은항목 / a.남은날);
 }
 
+// --- 주간 돌아보기 ------------------------------------------------------------
+// 엄마 화면에서 "이번 주에 뭐가 오갔는지"를 한 줄로 보기 위한 계산.
+// 항목(items) 단위로 세는 것은 나머지 화면과 같다 — 학원 숙제 1건에 4개면 4개로 센다.
+
+/** Firestore Timestamp든 Date든 Date로 */
+function toDate(value) {
+  if (value && typeof value.toDate === "function") return value.toDate();
+  if (value instanceof Date) return value;
+  return null;
+}
+
+/** 이번 주 시작(월요일) 0시 */
+export function weekStart(today = new Date()) {
+  const base = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const back = (base.getDay() + 6) % 7;   // 월=0 이 되도록
+  return new Date(base.getFullYear(), base.getMonth(), base.getDate() - back);
+}
+
+/**
+ * 이번 주 돌아보기.
+ *   받음   — 이번 주에 새로 들어온 숙제 수
+ *   끝냄   — 이번 주에 끝낸 숙제 수 (마지막으로 움직인 시각 기준)
+ *   남음   — 아직 안 끝난 항목 수
+ *   밀림   — 기한이 지났는데 아직 안 끝난 것들 (학원 요일로 계산한 기한 포함)
+ *   과목별 — 과목마다 남은 항목 수 (많은 순)
+ */
+export function weeklyReview(todos, today = new Date(), schedule) {
+  const from = weekStart(today);
+  const limit = toDateValue(today);
+  const review = { 받음: 0, 끝냄: 0, 남음: 0, 밀림: [], 과목별: [] };
+  const bySubject = new Map();
+
+  for (const todo of todos || []) {
+    if (!todo) continue;
+    const made = toDate(todo.createdAt);
+    if (made && made >= from) review.받음 += 1;
+
+    const counts = countTodo(todo);
+    if (todo.completed) {
+      const moved = toDate(todo.updatedAt) || made;
+      if (moved && moved >= from) review.끝냄 += 1;
+      continue;
+    }
+
+    const 남은 = counts.총 - counts.완료;
+    review.남음 += 남은;
+    const subject = todo.subject || "기타";
+    bySubject.set(subject, (bySubject.get(subject) || 0) + 남은);
+
+    const due = effectiveDue(todo, schedule, today);
+    if (due && due < limit) review.밀림.push({ todo, due, 남은 });
+  }
+
+  review.밀림.sort((a, b) => (a.due < b.due ? -1 : a.due > b.due ? 1 : 0));
+  review.과목별 = [...bySubject.entries()]
+    .map(([subject, 남은]) => ({ subject, 남은 }))
+    .sort((a, b) => b.남은 - a.남은);
+  return review;
+}
+
 /**
  * 엄마가 방금 보낸 할일만 골라낸다. 화면에 "숙제가 왔어요" 배너를 띄울 때 쓴다.
  *

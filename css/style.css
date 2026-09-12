@@ -2072,3 +2072,41 @@ textarea.field {
   color: #fff;
   font-weight: 700;
 }
+
+/* --- 이번 주 돌아보기 (엄마 현황) ------------------------------------------ */
+.weekly {
+  margin: 10px 0 4px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+
+.weekly-line {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.weekly-late {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  word-break: break-word;
+}
+
+.weekly-late-tag {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: var(--pill);
+  background: var(--urgent-soft);
+  color: var(--urgent);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.weekly-subjects {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 8px;
+}

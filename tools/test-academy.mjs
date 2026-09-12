@@ -26,8 +26,9 @@ registerHooks({
 });
 
 const { parseAcademyMessage, canonicalSection } = await import("../js/sources/academy-message.js");
-const { arrangeTodos, sortByDeadline, nextClassDate, daysForSubject, effectiveDue, dueLabel, selectToday, suggestAhead } =
-  await import("../js/todo-logic.js");
+const { arrangeTodos, sortByDeadline, nextClassDate, daysForSubject, effectiveDue, dueLabel, selectToday, suggestAhead,
+  weekStart, weeklyReview } = await import("../js/todo-logic.js");
+const { advanceStreak, visibleStreak, dayBefore } = await import("../js/rewards.js");
 
 let failed = 0;
 function test(name, fn) {
@@ -234,6 +235,63 @@ test("미리 하기: 급한 것부터 (하루 몫이 큰 순)", () => {
   const a = 숙제({ id: "a", createdAt: madeOn("2026-09-15"), items: items(6) });              // 3개/일
   const b = 숙제({ id: "b", subject: "수학", createdAt: madeOn("2026-09-15"), items: items(9) }); // 기한 9/16 → 9개/일
   assert.deepEqual(suggestAhead([a, b], today, schedule).map((x) => x.todo.id), ["b", "a"]);
+});
+
+// ---------------------------------------------------------------------------
+// 주간 돌아보기 (엄마 화면)
+// ---------------------------------------------------------------------------
+const at = (iso) => ({ toDate: () => new Date(iso) });
+
+test("이번 주 시작은 월요일", () => {
+  // 2026-09-12는 토요일 → 그 주 월요일은 9/7
+  assert.equal(weekStart(new Date("2026-09-12T15:00:00")).getDate(), 7);
+  // 월요일이면 그날이 시작
+  assert.equal(weekStart(new Date("2026-09-07T01:00:00")).getDate(), 7);
+  // 일요일은 아직 그 주에 속한다 (월요일 시작이므로 9/7)
+  assert.equal(weekStart(new Date("2026-09-13T23:00:00")).getDate(), 7);
+});
+
+test("이번 주: 받은 것·끝낸 것·남은 항목·밀린 것·과목별", () => {
+  const today = new Date("2026-09-12T20:00:00");   // 토
+  const list = [
+    // 이번 주에 받아 이번 주에 끝냄
+    { id: "a", subject: "영어", category: "숙제", completed: true, date: "2026-09-10",
+      createdAt: at("2026-09-08T10:00:00"), updatedAt: at("2026-09-11T20:00:00") },
+    // 이번 주에 받았고 아직 남음 — 기한이 지났다 (밀림)
+    { id: "b", subject: "영어", category: "숙제", completed: false, date: "2026-09-11",
+      createdAt: at("2026-09-09T10:00:00"), items: [{ text: "1", done: true }, { text: "2" }, { text: "3" }] },
+    // 지난주에 받았고 아직 남음 — 기한은 아직
+    { id: "c", subject: "수학", category: "숙제", completed: false, date: "2026-09-20",
+      createdAt: at("2026-09-01T10:00:00") },
+    // 날짜 없는 영어 숙제: 9/9(수)에 받음 → 다음 영어 수업 9/10(목)이 기한 → 밀림
+    { id: "d", subject: "영어", category: "숙제", completed: false, date: "",
+      createdAt: at("2026-09-09T10:00:00") },
+  ];
+  const r = weeklyReview(list, today, schedule);
+  assert.equal(r.받음, 3);
+  assert.equal(r.끝냄, 1);
+  assert.equal(r.남음, 4);                       // b 2개 + c 1개 + d 1개
+  assert.deepEqual(r.밀림.map((x) => [x.todo.id, x.due]), [["d", "2026-09-10"], ["b", "2026-09-11"]]);
+  assert.deepEqual(r.과목별, [{ subject: "영어", 남은: 3 }, { subject: "수학", 남은: 1 }]);
+});
+
+// ---------------------------------------------------------------------------
+// 연속 달성
+// ---------------------------------------------------------------------------
+test("연속: 어제 했으면 이어지고, 걸렀으면 1부터", () => {
+  assert.equal(dayBefore("2026-09-12"), "2026-09-11");
+  assert.equal(dayBefore("2026-09-01"), "2026-08-31");
+  assert.equal(advanceStreak(4, "2026-09-11", "2026-09-12"), 5);   // 어제 → 이어짐
+  assert.equal(advanceStreak(4, "2026-09-10", "2026-09-12"), 1);   // 하루 걸렀다 → 처음부터
+  assert.equal(advanceStreak(0, null, "2026-09-12"), 1);           // 첫날
+  assert.equal(advanceStreak(4, "2026-09-12", "2026-09-12"), 4);   // 오늘 이미 받았으면 그대로
+});
+
+test("연속 표시: 끊겼으면 0으로 보여 준다", () => {
+  assert.equal(visibleStreak(5, "2026-09-12", "2026-09-12"), 5);   // 오늘 했다
+  assert.equal(visibleStreak(5, "2026-09-11", "2026-09-12"), 5);   // 어제까지 했다 (오늘 하면 6)
+  assert.equal(visibleStreak(5, "2026-09-10", "2026-09-12"), 0);   // 끊겼다
+  assert.equal(visibleStreak(0, null, "2026-09-12"), 0);
 });
 
 console.log(failed ? "\n" + failed + "개 실패" : "\n모두 통과");

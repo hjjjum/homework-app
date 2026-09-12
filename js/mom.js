@@ -35,6 +35,7 @@ import {
   arrangeTodos,
   SORT_MODES,
   daysForSubject,
+  weeklyReview,
 } from "./todo-logic.js";
 import { createDuePicker, createUrgentToggle, urgentIcon } from "./due-picker.js";
 import { createTodoEditor, makeEditDraft, createItemsEditor } from "./todo-editor.js";
@@ -882,6 +883,47 @@ export function initMom() {
     return box;
   }
 
+  /**
+   * 이번 주 돌아보기 — 아이 카드 맨 위, 진행률 바로 아래.
+   * "이번 주에 뭘 받았고 뭘 끝냈고 뭐가 밀렸는지"를 한눈에 본다.
+   * 밀린 것은 이름까지 보여 준다 — 숫자만 보면 무엇부터 챙겨야 할지 알 수 없다.
+   */
+  function renderWeekly(studentId) {
+    const kid = state.kids[studentId];
+    const r = weeklyReview(kid.todos, new Date(), kid.schedule);
+
+    const box = makeEl("div", "weekly");
+    const line = makeEl("p", "weekly-line");
+    line.append(
+      makeEl("b", null, "이번 주"),
+      makeEl("span", "", " 받은 숙제 " + r.받음 + "개 · 끝낸 숙제 " + r.끝냄 + "개 · 남은 항목 " + r.남음 + "개")
+    );
+    box.appendChild(line);
+
+    if (r.밀림.length > 0) {
+      const late = makeEl("p", "weekly-late");
+      late.appendChild(makeEl("span", "weekly-late-tag", "밀린 숙제 " + r.밀림.length + "개"));
+      late.appendChild(
+        document.createTextNode(
+          " " + r.밀림.slice(0, 3).map((x) => x.todo.title.split("\n")[0]).join(", ") +
+            (r.밀림.length > 3 ? " 외 " + (r.밀림.length - 3) + "개" : "")
+        )
+      );
+      box.appendChild(late);
+    }
+
+    if (r.과목별.length > 0) {
+      const row = makeEl("div", "weekly-subjects");
+      for (const { subject, 남은 } of r.과목별) {
+        row.appendChild(
+          makeEl("span", "title-subject subject--" + SUBJECT_KEY[subject], subject + " " + 남은)
+        );
+      }
+      box.appendChild(row);
+    }
+    return box;
+  }
+
   /** 요일 단추 이름 (0=일) */
   const DAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
 
@@ -988,6 +1030,7 @@ export function initMom() {
     fill.style.width = all.비율 + "%";
     bar.appendChild(fill);
     card.appendChild(bar);
+    if (kid.loaded && todos.length > 0) card.appendChild(renderWeekly(studentId));
 
     // 남은 항목이 먼저(급한 일이 맨 위), 그 뒤에 완료한 항목.
     // 완료한 것도 목록에 둔다 — 빠지면 엄마가 그 숙제 내용을 고칠 방법이 없다.

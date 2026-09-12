@@ -72,6 +72,13 @@ mom.html        →  js/mom.js  ┤→  js/db.js  →  js/firebase-config.js  �
   그 모듈들에 넣는 편이 검증하기 쉽다.
   `alert()` / `confirm()` / `prompt()`는 쓰지 않는다 — 브라우저 모달이 자동화 세션을 멈추게 하므로,
   삭제 확인은 "한 번 더 누르기", 항목 수정은 인라인 폼으로 처리한다.
+- **js/rewards.js** — 성취 연출(진행 링·스티커 판·완주 축하·연속 달성). Firestore를 건드리지 않고
+  **그 아이 기기의 localStorage에만** 저장한다(`hw.rewards.<studentId>`).
+  **연속 달성은 어제 했을 때만 이어진다** — `advanceStreak()`이 그 판정을 하고, 하루라도 건너뛰면
+  1부터 다시 센다(예전에는 그냥 +1이라 "연속"이 아니라 "총 달성 일수"였다).
+  끊긴 연속은 화면에서 0으로 보여 준다(`visibleStreak`) — 거짓말이 되지 않게. 최고 기록은 따로 남긴다.
+  `STREAK_MILESTONES`(3·5·7·14·30·50·100일)에는 아직 못 받은 스티커를 한 장 더 준다.
+  이 세 함수는 날짜 문자열만 다루는 순수 함수라 Node에서 테스트된다.
 - **js/photo.js** — 캡쳐 원본 사진. `compressPhoto`(문서 한 개에 들어갈 JPEG로 줄이기)와
   `createPhotoBlock`("원본 사진 펼치기" 단추 + 사진, 딸 화면·엄마 현황 공용). 펼칠 때만 읽고
   페이지가 기억하며, 사진을 누르면 두 배로 커져 옆으로 밀어 본다(표 글씨가 작아서).
@@ -88,6 +95,9 @@ mom.html        →  js/mom.js  ┤→  js/db.js  →  js/firebase-config.js  �
   (app.js의 `state.editorEl`, mom.js의 `state.editorEl`이 그 역할).
 - **js/todo-logic.js** — 두 화면이 함께 쓰는 순수 함수(`filterByCategory` / `splitByCompleted` /
   `calcProgress` / `formatDue` / `arrangeTodos`)와 `CATEGORY_KEY`.
+  **주간 돌아보기**는 `weeklyReview()`가 계산한다(월요일 시작) — 이번 주에 받은 숙제·끝낸 숙제·
+  남은 항목·밀린 것·과목별 남은 수. 엄마 화면 현황의 아이 카드 진행률 아래에 붙는다.
+  밀린 것은 개수만이 아니라 **제목까지** 보여 준다 — 숫자만으로는 무엇부터 챙길지 알 수 없다.
   **미리 하기**는 `suggestAhead()`가 고른다 — 마감이 아직 남았지만 항목이 3개 이상이고
   하루에 1개보다 많이 해야 하는 숙제만 권한다(실제 숙제로 맞춘 값). 데이터는 건드리지 않고
   딸 화면에 안내만 띄운다 — 오늘 몫으로 옮기면 마감일이 흐려지기 때문이다.
