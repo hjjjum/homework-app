@@ -161,6 +161,65 @@ test("둘째 표 6영역: Grammar·Listening 행도 각각 숙제 하나, OCR이
   assert.equal(s[5].date, "9/17");
 });
 
+// 실제로 받은 Grammar·Listening 부분 캡쳐 (칸별 OCR 결과 그대로).
+// 머리글 행이 없고, Listening 칸은 번호 없는 숙제 한 줄 + 주황 안내 두 줄이다.
+const cols4 = [[25, 454], [468, 2523], [2537, 2835]];
+const rows4 = [[43, 695], [710, 1014]];
+const grammarListening = [
+  [
+    [["GRAMMAR", 109, 373, 349, 386]],
+    [
+      ["[천일문 중등 GRAMMAR Level 2]", 476, 1219, 47, 97, true],
+      ["1. 리뷰테스트 오답노트", 478, 960, 171, 217],
+      ["2.Ch.02 시제 (0.22~35) 풀고 채점하기 (들린 문제 옆에 답의 근거 쓰기}", 476, 1992, 233, 283],
+      ["3. 한 장 정리 빈칸 채우고 채점", 477, 1108, 295, 341],
+      ["본교재는 풀고 채점 후 듣린 문제에 대한 문법적인 설명을 문제 옆에 적기, 리뷰테스트 오답노트는", 480, 2471, 420, 464, true],
+      ["핸드북 오담노트란에 들린 문제 쓰고 해설 쓰기", 480, 1434, 483, 526, true],
+    ],
+    [["9/15", 2656, 2751, 349, 387]],
+  ],
+  [
+    [["Listening", 133, 350, 846, 892]],
+    [
+      ["[HACKERS APEX LISTENING for the TOEFL iBT Advanced]", 476, 1890, 718, 763, true],
+      ["P25-31,37-40 풀고 채점하기", 476, 1080, 775, 825],
+      ["Note Taking은 필수입니다", 479, 1046, 839, 886, true],
+      ["Dictation 하면 숙제 점수 A+!!", 480, 1118, 901, 944, true],
+    ],
+    [["9/15", 2656, 2751, 845, 883]],
+  ],
+].map((cells, r) => cells.map((lines, c) =>
+  cell(cols4[c][0], cols4[c][1], rows4[r][0], rows4[r][1], lines)));
+
+test("Grammar·Listening 캡쳐: 번호 항목과 주황 안내를 가른다", () => {
+  const [grammar, listening] = interpretTable(grammarListening);
+  assert.equal(grammar.name, "Grammar");
+  assert.deepEqual(grammar.items, [
+    "리뷰테스트 오답노트",
+    // OCR이 틀리게 읽은 것들이 바로잡힌다: 0.22~35 → p.22~35, 들린 → 틀린, 닫는 } → )
+    "Ch.02 시제 (p.22~35) 풀고 채점하기 (틀린 문제 옆에 답의 근거 쓰기)",
+    "한 장 정리 빈칸 채우고 채점",
+  ]);
+  assert.deepEqual(grammar.memo.split("\n"), [
+    "교재: 천일문 중등 GRAMMAR Level 2",
+    "본교재는 풀고 채점 후 틀린 문제에 대한 문법적인 설명을 문제 옆에 적기, 리뷰테스트 오답노트는 핸드북 오답노트란에 틀린 문제 쓰고 해설 쓰기",
+  ]);
+  assert.equal(grammar.date, "9/15");
+});
+
+test("Grammar·Listening 캡쳐: 번호 없는 한 줄 숙제 + 주황 안내 두 줄", () => {
+  const listening = interpretTable(grammarListening)[1];
+  assert.equal(listening.name, "Listening");
+  assert.deepEqual(listening.items, ["P25-31,37-40 풀고 채점하기"]);
+  assert.deepEqual(listening.memo.split("\n"), [
+    "교재: HACKERS APEX LISTENING for the TOEFL iBT Advanced",
+    "Note Taking은 필수입니다",
+    "Dictation 하면 숙제 점수 A+!!",
+  ]);
+  assert.equal(listening.date, "9/15");
+  assert.equal(listening.subject, "영어");
+});
+
 test("둘째 표: 과목은 영어", () => {
   for (const s of interpretTable(daughter2)) assert.equal(s.subject, "영어");
 });
