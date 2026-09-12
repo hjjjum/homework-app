@@ -412,3 +412,6 @@ a:hover { color: color-mix(in oklch, var(--ac) 78%, black); }
 
 @keyframes slidedown { 0% { transform: translate(-50%, -22px); opacity: 0 }
   100% { transform: translate(-50%, 0); opacity: 1 } }
+/* 연속이 끊겼을 때는 옅게 (rewards.js가 .streak--on을 붙인다) */
+.streak:not(.streak--on) { opacity: .7; }
+.streak-best { font-size: 12px; color: var(--ink-soft); }

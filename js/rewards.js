@@ -44,6 +44,45 @@ export const FONTS = [
   { id: "story", label: "즐거운이야기", family: "'JeulgeounIyagi',sans-serif" }
 ];
 
+/**
+ * 연속 달성을 세는 순수 함수들. 날짜 문자열("YYYY-MM-DD")만 다루므로 Node에서 테스트된다.
+ *
+ * 예전에는 목표를 끝낼 때마다 그냥 +1 했다. 그러면 하루 걸러 해도 숫자가 계속 올라
+ * "연속"이라는 말이 무색해진다. 어제 했을 때만 이어 붙이고, 하루라도 건너뛰면 1부터 다시 센다.
+ */
+export const STREAK_MILESTONES = [3, 5, 7, 14, 30, 50, 100];
+
+/** "YYYY-MM-DD"에서 하루 전 */
+export function dayBefore(dateStr) {
+  const [y, m, d] = String(dateStr || "").split("-").map(Number);
+  if (!y || !m || !d) return "";
+  const prev = new Date(y, m - 1, d - 1);
+  const pad = (n) => String(n).padStart(2, "0");
+  return prev.getFullYear() + "-" + pad(prev.getMonth() + 1) + "-" + pad(prev.getDate());
+}
+
+/**
+ * 오늘 목표를 끝냈을 때의 새 연속 일수.
+ * @param {number} streak 지금까지의 연속 일수
+ * @param {string|null} lastClearDate 마지막으로 끝낸 날
+ * @param {string} todayStr 오늘
+ */
+export function advanceStreak(streak, lastClearDate, todayStr) {
+  if (lastClearDate === todayStr) return Math.max(1, Number(streak) || 0);   // 오늘 이미 받았다
+  return lastClearDate === dayBefore(todayStr) ? (Number(streak) || 0) + 1 : 1;
+}
+
+/**
+ * 화면에 보여줄 연속 일수. 오늘도 어제도 안 했으면 끊긴 것이므로 0.
+ * (끊겼는데 "5일 연속"이 그대로 붙어 있으면 거짓말이 된다)
+ */
+export function visibleStreak(streak, lastClearDate, todayStr) {
+  if (lastClearDate === todayStr || lastClearDate === dayBefore(todayStr)) {
+    return Number(streak) || 0;
+  }
+  return 0;
+}
+
 const BIT_COLORS = ["#FF5B3E", "#FF7FAE", "#FFC93C", "#8FD9EE", "#3FA86B", "#B9A7F0"];
 const STAR_CLIP = "polygon(50% 0,60% 40%,100% 50%,60% 60%,50% 100%,40% 60%,0 50%,40% 40%)";
 
@@ -56,6 +95,7 @@ function load(studentId) {
       : (teen ? PICK_CALM.slice() : PICK_CUTE.slice()),
     board: Array.isArray(saved.board) ? saved.board : [],
     streak: Number(saved.streak) || 0,
+    best: Number(saved.best) || Number(saved.streak) || 0,   // 최고 기록
     lastClearDate: saved.lastClearDate || null,
     theme: saved.theme || (teen ? "lavender" : "strawberry"),
     bg: saved.bg || (teen ? "dots" : "sky"),
@@ -66,7 +106,7 @@ function load(studentId) {
 function save(studentId, s) {
   try {
     localStorage.setItem(KEY(studentId), JSON.stringify({
-      picked: s.picked, board: s.board, streak: s.streak,
+      picked: s.picked, board: s.board, streak: s.streak, best: s.best,
       lastClearDate: s.lastClearDate, theme: s.theme, bg: s.bg, font: s.font
     }));
   } catch (e) { /* 사파리 프라이빗 모드 등 — 저장 실패는 무시 */ }
@@ -187,8 +227,13 @@ export function initRewards(studentId, options) {
     host.textContent = "";
     host.className = "reward-panel";
 
-    const streakRow = el("div", "streak");
-    streakRow.append(el("span", "streak-star"), el("b", null, state.streak + "일 연속"));
+    const now = visibleStreak(state.streak, state.lastClearDate, today());
+    const streakRow = el("div", "streak" + (now > 0 ? " streak--on" : ""));
+    streakRow.append(
+      el("span", "streak-star"),
+      el("b", null, now > 0 ? now + "일 연속" : "오늘부터 다시 연속 도전")
+    );
+    if (state.best > 1) streakRow.append(el("span", "streak-best", "최고 " + state.best + "일"));
     host.appendChild(streakRow);
 
     /* 스티커 판 */
@@ -299,16 +344,21 @@ export function initRewards(studentId, options) {
   }
 
   /* --- 완주 축하 --- */
-  function celebrate(stickerId) {
-    buzz([18, 60, 18]);
+  function celebrate(award) {
+    const stickerId = award.sticker;
+    buzz(award.bonus ? [18, 60, 18, 60, 24] : [18, 60, 18]);
     const modal = el("div", "celebrate");
     const box = el("div", "celebrate-box");
     const art = el("div", "celebrate-art");
     art.appendChild(createSticker(stickerId, 104));
+    if (award.bonus) art.appendChild(createSticker(award.bonus, 104));
     box.appendChild(art);
-    box.appendChild(el("h2", null, "오늘 목표 끝!"));
+    box.appendChild(el("h2", null, award.bonus ? award.streak + "일 연속!" : "오늘 목표 끝!"));
     box.appendChild(el("p", null,
-      getSticker(stickerId).name + " 스티커를 받았어요. " + state.streak + "일 연속 달성 중이에요."));
+      award.bonus
+        ? getSticker(stickerId).name + "에 " + getSticker(award.bonus).name +
+          " 스티커까지, 두 장 받았어요. 이 기세로 하루만 더!"
+        : getSticker(stickerId).name + " 스티커를 받았어요. " + award.streak + "일 연속 달성 중이에요."));
     const ok = el("button", "btn btn--primary btn--block", "스티커 받기");
     ok.type = "button";
     ok.addEventListener("click", () => modal.remove());
@@ -327,16 +377,34 @@ export function initRewards(studentId, options) {
     document.body.appendChild(modal);
   }
 
-  /** 하루에 한 번, 전부 끝냈을 때만 스티커를 한 장 준다. */
+  /**
+   * 하루에 한 번, 전부 끝냈을 때만 스티커를 한 장 준다.
+   * 연속 3·5·7·14·30·50·100일에는 한 장을 더 얹는다 (이어 온 날이 아까워서 하루 더 하게).
+   * @returns {{sticker: string, streak: number, bonus: string|null}|null}
+   */
   function awardOnce() {
-    if (state.lastClearDate === today()) return null;
+    const day = today();
+    if (state.lastClearDate === day) return null;
     const next = state.picked[state.board.length % state.picked.length];
     state.board = state.board.length >= BOARD_GOAL ? [next] : state.board.concat(next);
-    state.streak = state.streak + 1;
-    state.lastClearDate = today();
+    state.streak = advanceStreak(state.streak, state.lastClearDate, day);
+    state.best = Math.max(state.best || 0, state.streak);
+    state.lastClearDate = day;
+
+    let bonus = null;
+    if (STREAK_MILESTONES.includes(state.streak)) {
+      // 보너스는 담아둔 것 말고 **아직 못 받은 스티커** 중에서 준다
+      const owned = new Set(state.board);
+      const fresh = STICKERS.map((x) => x.id).filter((id) => !owned.has(id));
+      bonus = fresh.length
+        ? fresh[state.streak % fresh.length]
+        : state.picked[(state.board.length + 1) % state.picked.length];
+      state.board = state.board.length >= BOARD_GOAL ? [bonus] : state.board.concat(bonus);
+    }
+
     save(studentId, state);
     renderPanel();
-    return next;
+    return { sticker: next, streak: state.streak, bonus };
   }
 
   renderPanel();
