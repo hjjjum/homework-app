@@ -97,9 +97,18 @@ service cloud.firestore {
               && d.at is timestamp;
         }
 
+        // 학원 요일: [{subject, days:[0~6], name}] — 안쪽 값은 앱이 정리하므로
+        // 여기서는 개수와 타입만 본다 (학원이 늘어도 규칙을 다시 배포하지 않도록).
+        function isValidSchedule(d) {
+          return d.keys().hasOnly(['items', 'at'])
+              && d.items is list && d.items.size() <= 20
+              && d.at is timestamp;
+        }
+
         function isValidMeta(d) {
           return (docId == 'cheer' && isValidCheer(d))
-              || (docId == 'profile' && isValidProfile(d));
+              || (docId == 'profile' && isValidProfile(d))
+              || (docId == 'schedule' && isValidSchedule(d));
         }
 
         allow read:  if isKnownStudent();

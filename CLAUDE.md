@@ -88,6 +88,9 @@ mom.html        →  js/mom.js  ┤→  js/db.js  →  js/firebase-config.js  �
   (app.js의 `state.editorEl`, mom.js의 `state.editorEl`이 그 역할).
 - **js/todo-logic.js** — 두 화면이 함께 쓰는 순수 함수(`filterByCategory` / `splitByCompleted` /
   `calcProgress` / `formatDue` / `arrangeTodos`)와 `CATEGORY_KEY`.
+  **미리 하기**는 `suggestAhead()`가 고른다 — 마감이 아직 남았지만 항목이 3개 이상이고
+  하루에 1개보다 많이 해야 하는 숙제만 권한다(실제 숙제로 맞춘 값). 데이터는 건드리지 않고
+  딸 화면에 안내만 띄운다 — 오늘 몫으로 옮기면 마감일이 흐려지기 때문이다.
   **보기 순서**는 `SORT_MODES`(급한 순 / 과목별) 하나로 두 화면이 같이 움직인다.
   급한 순 = 급한 일 → 마감 이른 것 → 날짜 없는 것("다음 수업까지"). 과목별은 과목마다 묶어
   머리글을 달아 돌려준다. 고른 값은 기기에 남는다(`hw.sort.<화면>`). DOM·Firestore에 의존하지 않으므로 Node에서
@@ -203,6 +206,14 @@ mom.html        →  js/mom.js  ┤→  js/db.js  →  js/firebase-config.js  �
 나오므로 여러 할일이 같은 사진을 가리키고, 할일을 지울 때 그 사진을 쓰는 할일이 하나도
 안 남으면 사진도 지운다(db.js의 `releaseImage`). 사진 저장이 막히거나 실패해도
 **숙제는 사진 없이 저장된다** — 규칙을 배포하기 전에도 보내기가 막히지 않게 하려는 것이다.
+
+- `students/{studentId}/meta/schedule` — **학원 요일** (`{items: [{subject, days, name}], at}`,
+days는 0=일 … 6=토). 엄마 화면 현황 탭의 "학원 요일"에서 고치고, 딸 화면도 같은 값을 본다.
+아직 저장한 적이 없으면 db.js의 `DEFAULT_SCHEDULE`을 쓴다.
+이 요일이 있으면 **날짜가 비어 있는 숙제("다음 수업까지")가 실제 기한을 갖는다** —
+`todo-logic.js`의 `effectiveDue()`가 숙제를 받은 날(createdAt)의 다음 수업일을 계산하고,
+마감 뱃지는 "목요일까지"로, 그날이 오면 오늘 몫(`selectToday`)에 저절로 올라온다.
+날짜를 적어 보낸 숙제는 그 날짜가 이긴다.
 
 `students/{studentId}` 문서 자체에는 아무것도 쓰지 않는다 (규칙에서도 `allow write: if false`).
   콘솔에서 이 문서가 기울임체로 보이는 건 정상이다.

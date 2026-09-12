@@ -16,6 +16,8 @@ import {
   saveImage,
   setCheer,
   listenProfile,
+  listenSchedule,
+  setSchedule,
   DEFAULT_PROFILE,
   CATEGORIES,
   STUDENT_IDS,
@@ -32,6 +34,7 @@ import {
   countTodo,
   arrangeTodos,
   SORT_MODES,
+  daysForSubject,
 } from "./todo-logic.js";
 import { createDuePicker, createUrgentToggle, urgentIcon } from "./due-picker.js";
 import { createTodoEditor, makeEditDraft, createItemsEditor } from "./todo-editor.js";
@@ -148,7 +151,10 @@ export function initMom() {
     nextKey: 1,
     // 아이별 현황. 두 아이를 동시에 구독한다.
     kids: Object.fromEntries(
-      STUDENT_IDS.map((id) => [id, { todos: [], loaded: false, error: "", cheerNote: "", cheerEl: null }])
+      STUDENT_IDS.map((id) => [
+        id,
+        { todos: [], loaded: false, error: "", cheerNote: "", cheerEl: null, schedule: [] },
+      ])
     ),
     unsubscribe: null,
     sending: false,
@@ -166,6 +172,8 @@ export function initMom() {
     pendingPhoto: null,
     // 방금 보낸 것 (되돌리기용): { todos: [{studentId, id, imageId}], drafts: [...] }
     lastSent: null,
+    // 학원 요일 설정을 펼쳐 둔 아이
+    scheduleOpen: Object.fromEntries(STUDENT_IDS.map((id) => [id, false])),
   };
 
   // --- 학원 표별 보내기 기본값 -------------------------------------------
@@ -692,7 +700,7 @@ export function initMom() {
       );
     }
     meta.appendChild(makeEl("span", "badge badge--" + CATEGORY_KEY[todo.category], todo.category));
-    const due = dueLabel(todo);
+    const due = dueLabel(todo, new Date(), state.kids[studentId].schedule);
     if (due) meta.appendChild(makeEl("span", "due due--" + due.tone, due.text));
     if (todo.urgent) meta.appendChild(makeEl("span", "badge badge--urgent", "급해요"));
     box.appendChild(meta);
@@ -874,6 +882,79 @@ export function initMom() {
     return box;
   }
 
+  /** 요일 단추 이름 (0=일) */
+  const DAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
+
+  /**
+   * 학원 요일 설정. 과목마다 요일 단추 7개를 두고, 누르면 바로 저장한다.
+   * 날짜를 안 적은 숙제("다음 수업까지")가 이 요일을 보고 실제 기한이 된다 —
+   * 딸 화면의 "오늘 목표"와 마감 뱃지가 여기에 따라 움직인다.
+   */
+  function renderScheduleBox(studentId) {
+    const kid = state.kids[studentId];
+    const open = state.scheduleOpen[studentId];
+
+    const box = makeEl("div", "schedule-box");
+    const toggle = makeEl(
+      "button",
+      "btn btn--ghost btn--small",
+      (open ? "▾ " : "▸ ") + "학원 요일"
+    );
+    toggle.type = "button";
+    toggle.dataset.action = "schedule-toggle";
+    toggle.dataset.student = studentId;
+    toggle.setAttribute("aria-expanded", String(open));
+    box.appendChild(toggle);
+    if (!open) return box;
+
+    box.appendChild(
+      makeEl("p", "schedule-hint", "요일을 누르면 바로 저장됩니다. 날짜를 안 적은 숙제는 그 다음 수업일까지가 됩니다.")
+    );
+
+    // "기타"는 학원이 없으므로 뺀다
+    for (const subject of SUBJECTS.filter((x) => x !== "기타")) {
+      const row = makeEl("div", "schedule-row");
+      row.appendChild(
+        makeEl("span", "title-subject subject--" + SUBJECT_KEY[subject], subject)
+      );
+      const days = daysForSubject(kid.schedule, subject);
+      for (let day = 0; day < 7; day++) {
+        const btn = makeEl("button", "day-btn", DAY_LABELS[day]);
+        btn.type = "button";
+        btn.dataset.action = "schedule-day";
+        btn.dataset.student = studentId;
+        btn.dataset.subject = subject;
+        btn.dataset.day = String(day);
+        btn.setAttribute("aria-pressed", String(days.includes(day)));
+        btn.setAttribute("aria-label", subject + " " + DAY_LABELS[day] + "요일");
+        row.appendChild(btn);
+      }
+      box.appendChild(row);
+    }
+    if (kid.scheduleNote) box.appendChild(makeEl("p", "schedule-hint", kid.scheduleNote));
+    return box;
+  }
+
+  /** 요일 하나를 켜고 끈 뒤 저장한다 */
+  async function toggleScheduleDay(studentId, subject, day) {
+    const kid = state.kids[studentId];
+    const days = daysForSubject(kid.schedule, subject);
+    const next = days.includes(day) ? days.filter((d) => d !== day) : [...days, day].sort();
+    // 같은 과목 학원이 여럿이면 한 줄로 합쳐 둔다 (이름은 첫 줄 것을 남긴다)
+    const others = kid.schedule.filter((a) => a.subject !== subject);
+    const name = (kid.schedule.find((a) => a.subject === subject) || {}).name || subject + "학원";
+    kid.schedule = next.length ? [...others, { subject, days: next, name }] : others;
+    kid.scheduleNote = "";
+    renderWatch();
+    try {
+      await setSchedule(studentId, kid.schedule);
+    } catch (err) {
+      console.error("[mom] 학원 요일 저장 실패", err);
+      kid.scheduleNote = "저장하지 못했습니다. (" + (err.code || err.message) + ")";
+      renderWatch();
+    }
+  }
+
   function renderKidCard(studentId) {
     const kid = state.kids[studentId];
     const todos = kid.todos;
@@ -944,6 +1025,7 @@ export function initMom() {
       }
     }
 
+    card.appendChild(renderScheduleBox(studentId));
     card.appendChild(cheerBox(studentId));
     if (kid.cheerNote) card.appendChild(makeEl("p", "kid-sub", kid.cheerNote));
 
@@ -1265,6 +1347,13 @@ export function initMom() {
           state.confirmDeleteId = null;
           renderWatch();
           break;
+        case "schedule-toggle":
+          state.scheduleOpen[btn.dataset.student] = !state.scheduleOpen[btn.dataset.student];
+          renderWatch();
+          break;
+        case "schedule-day":
+          toggleScheduleDay(btn.dataset.student, btn.dataset.subject, Number(btn.dataset.day));
+          break;
       }
     });
   }
@@ -1321,6 +1410,14 @@ export function initMom() {
     })
   );
 
+  // 학원 요일 — 현황의 마감 뱃지와 설정 화면이 쓴다 (딸 화면도 같은 값을 본다)
+  const stopSchedules = STUDENT_IDS.map((id) =>
+    listenSchedule(id, (schedule) => {
+      state.kids[id].schedule = schedule;
+      renderWatch();
+    })
+  );
+
   // 테마·배경·글꼴. 딸들과 저장 키가 달라서(hw.appearance.mom) 서로 영향을 주지 않는다.
   if (els.appearance) {
     els.appearance.appendChild(initAppearance("hw.appearance.mom").card);
@@ -1338,6 +1435,7 @@ export function initMom() {
     switchTab,
     unsubscribe() {
       stopProfiles.forEach((stop) => stop());
+      stopSchedules.forEach((stop) => stop());
       if (state.unsubscribe) state.unsubscribe();
     },
   };

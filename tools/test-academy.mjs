@@ -26,7 +26,8 @@ registerHooks({
 });
 
 const { parseAcademyMessage, canonicalSection } = await import("../js/sources/academy-message.js");
-const { arrangeTodos, sortByDeadline } = await import("../js/todo-logic.js");
+const { arrangeTodos, sortByDeadline, nextClassDate, daysForSubject, effectiveDue, dueLabel, selectToday, suggestAhead } =
+  await import("../js/todo-logic.js");
 
 let failed = 0;
 function test(name, fn) {
@@ -147,6 +148,92 @@ test("과목별: 과목 순서대로 묶고, 묶음 안은 급한 순", () => {
   );
   assert.deepEqual(arrangeTodos(todos, "urgent").map((g) => g.subject), [null]);
   assert.deepEqual(arrangeTodos([], "subject"), []);
+});
+
+// ---------------------------------------------------------------------------
+// 학원 요일 → "다음 수업까지"를 실제 날짜로
+// ---------------------------------------------------------------------------
+const 화목 = [2, 4];
+const schedule = [
+  { subject: "영어", name: "영어학원", days: 화목 },
+  { subject: "수학", name: "황소수학", days: [3, 5] },
+];
+/** createdAt 흉내 (Firestore Timestamp 처럼 toDate()를 준다) */
+const madeOn = (iso) => ({ toDate: () => new Date(iso + "T10:00:00") });
+const 숙제 = (extra) => ({ id: "t", category: "숙제", subject: "영어", date: "", ...extra });
+
+test("다음 수업일: 기준일 다음 날부터 찾는다", () => {
+  // 2026-09-15는 화요일 — 그날 받은 영어 숙제는 다음 목요일(9/17)까지
+  assert.equal(nextClassDate(화목, new Date("2026-09-15T10:00:00")), "2026-09-17");
+  // 목요일에 받았으면 다음 화요일(9/22)
+  assert.equal(nextClassDate(화목, new Date("2026-09-17T10:00:00")), "2026-09-22");
+  assert.equal(nextClassDate([], new Date("2026-09-15T10:00:00")), "");
+});
+
+test("한 과목에 학원이 둘이면 요일을 합친다", () => {
+  assert.deepEqual(daysForSubject(schedule, "영어"), [2, 4]);
+  assert.deepEqual(
+    daysForSubject([...schedule, { subject: "영어", name: "회화", days: [6] }], "영어"),
+    [2, 4, 6]
+  );
+  assert.deepEqual(daysForSubject(schedule, "과학"), []);
+});
+
+test("날짜 없는 학원 숙제의 실제 기한 = 받은 날의 다음 수업일", () => {
+  const todo = 숙제({ createdAt: madeOn("2026-09-15") });
+  assert.equal(effectiveDue(todo, schedule, new Date("2026-09-15T20:00:00")), "2026-09-17");
+  // 적힌 날짜가 있으면 그게 이긴다
+  assert.equal(effectiveDue(숙제({ date: "2026-09-30" }), schedule), "2026-09-30");
+  // 학원 요일을 모르는 과목은 예전처럼 빈 값
+  assert.equal(effectiveDue(숙제({ subject: "사회", createdAt: madeOn("2026-09-15") }), schedule), "");
+  // 숙제가 아닌 것은 계산하지 않는다
+  assert.equal(effectiveDue(숙제({ category: "공부", createdAt: madeOn("2026-09-15") }), schedule), "");
+});
+
+test("마감 뱃지: 먼 날은 요일로, 가까운 날은 오늘/내일로", () => {
+  const todo = 숙제({ createdAt: madeOn("2026-09-15") });   // 기한 9/17(목)
+  assert.deepEqual(dueLabel(todo, new Date("2026-09-15T20:00:00"), schedule), { text: "목요일까지", tone: "next" });
+  assert.deepEqual(dueLabel(todo, new Date("2026-09-16T20:00:00"), schedule), { text: "내일", tone: "soon" });
+  assert.deepEqual(dueLabel(todo, new Date("2026-09-17T08:00:00"), schedule), { text: "오늘", tone: "today" });
+  assert.deepEqual(dueLabel(todo, new Date("2026-09-18T08:00:00"), schedule), { text: "지났어요", tone: "past" });
+  // 학원 요일을 모르면 예전 그대로
+  assert.deepEqual(dueLabel(todo, new Date("2026-09-15T20:00:00"), []), { text: "다음 수업까지", tone: "next" });
+});
+
+test("오늘 몫: 학원 요일로 계산한 기한이 오면 들어온다", () => {
+  const todo = 숙제({ createdAt: madeOn("2026-09-15") });   // 기한 9/17
+  assert.equal(selectToday([todo], new Date("2026-09-16T09:00:00"), schedule).length, 0);
+  assert.equal(selectToday([todo], new Date("2026-09-17T09:00:00"), schedule).length, 1);
+});
+
+// ---------------------------------------------------------------------------
+// 미리 해두면 좋은 숙제
+// ---------------------------------------------------------------------------
+const items = (n, done = 0) =>
+  Array.from({ length: n }, (_, i) => ({ text: "항목" + (i + 1), done: i < done }));
+
+test("미리 하기: 하루에 해야 할 몫이 크면 권한다", () => {
+  const 많은숙제 = 숙제({ id: "big", createdAt: madeOn("2026-09-15"), items: items(6) }); // 기한 9/17
+  const [ahead] = suggestAhead([많은숙제], new Date("2026-09-15T20:00:00"), schedule);
+  assert.equal(ahead.todo.id, "big");
+  assert.equal(ahead.남은항목, 6);
+  assert.equal(ahead.남은날, 2);
+  assert.equal(ahead.오늘몫, 3);
+});
+
+test("미리 하기: 여유 있는 숙제·오늘 몫·끝난 것은 권하지 않는다", () => {
+  const today = new Date("2026-09-15T20:00:00");
+  const 여유 = 숙제({ id: "small", createdAt: madeOn("2026-09-15"), items: items(2) });    // 2개/2일
+  const 오늘것 = 숙제({ id: "today", date: "2026-09-15", items: items(8) });
+  const 끝남 = 숙제({ id: "done", createdAt: madeOn("2026-09-15"), items: items(6, 6), completed: true });
+  assert.deepEqual(suggestAhead([여유, 오늘것, 끝남], today, schedule), []);
+});
+
+test("미리 하기: 급한 것부터 (하루 몫이 큰 순)", () => {
+  const today = new Date("2026-09-15T20:00:00");
+  const a = 숙제({ id: "a", createdAt: madeOn("2026-09-15"), items: items(6) });              // 3개/일
+  const b = 숙제({ id: "b", subject: "수학", createdAt: madeOn("2026-09-15"), items: items(9) }); // 기한 9/16 → 9개/일
+  assert.deepEqual(suggestAhead([a, b], today, schedule).map((x) => x.todo.id), ["b", "a"]);
 });
 
 console.log(failed ? "\n" + failed + "개 실패" : "\n모두 통과");

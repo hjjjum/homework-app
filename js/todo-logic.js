@@ -130,17 +130,74 @@ export function sameDay(a, b) {
 
 export const NEXT_CLASS = "다음 수업까지";
 
+/** 요일 이름 (0=일) */
+const DAY_NAMES = ["일", "월", "화", "수", "목", "금", "토"];
+
+/**
+ * 그 과목 학원이 다음에 언제 있는지. 기준일 **다음 날부터** 찾는다 —
+ * 오늘 수업에서 받아온 숙제는 오늘이 아니라 다음 수업까지가 기한이기 때문이다.
+ * @param {number[]} days 0=일 … 6=토
+ * @param {Date} from 기준일 (보통 숙제를 받은 날)
+ * @returns {string} "YYYY-MM-DD" — 요일이 없으면 빈 문자열
+ */
+export function nextClassDate(days, from = new Date()) {
+  if (!Array.isArray(days) || days.length === 0) return "";
+  const base = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+  for (let i = 1; i <= 7; i++) {
+    const day = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i);
+    if (days.includes(day.getDay())) return toDateValue(day);
+  }
+  return "";
+}
+
+/** 그 과목 학원의 요일들 (한 과목에 학원이 둘이면 합친다) */
+export function daysForSubject(schedule, subject) {
+  const days = (schedule || [])
+    .filter((a) => a && a.subject === subject && Array.isArray(a.days))
+    .flatMap((a) => a.days);
+  return [...new Set(days)].sort();
+}
+
+/**
+ * 그 숙제가 실제로 언제까지인지.
+ * 날짜가 적혀 있으면 그대로, 비어 있는 숙제("다음 수업까지")는 학원 요일로 계산한다.
+ * 받은 날(createdAt)을 기준으로 그 **다음 수업일**이 기한이다.
+ * @returns {string} "YYYY-MM-DD" — 알 수 없으면 빈 문자열
+ */
+export function effectiveDue(todo, schedule, today = new Date()) {
+  if (!todo) return "";
+  if (typeof todo.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(todo.date)) return todo.date;
+  if (todo.category !== "숙제") return "";
+  const days = daysForSubject(schedule, todo.subject);
+  if (days.length === 0) return "";
+  const made = todo.createdAt && typeof todo.createdAt.toDate === "function"
+    ? todo.createdAt.toDate()
+    : today;
+  return nextClassDate(days, made);
+}
+
 /**
  * 화면에 붙일 마감 뱃지를 정한다.
- * 날짜가 있으면 formatDue 그대로, 없으면 숙제에 한해 "다음 수업까지".
+ * 날짜가 있으면 formatDue 그대로. 날짜가 없는 숙제는 학원 요일을 알면 "화요일까지",
+ * 모르면 예전처럼 "다음 수업까지".
  * (개인스케줄·공부는 날짜가 없으면 뱃지도 없다)
+ * @param {Array} [schedule] 학원 요일 (없으면 예전과 같이 동작한다)
  * @returns {{text: string, tone: "past"|"today"|"soon"|"later"|"next"}|null}
  */
-export function dueLabel(todo, today = new Date()) {
+export function dueLabel(todo, today = new Date(), schedule) {
   const due = formatDue(todo && todo.date, today);
   if (due) return due;
-  if (todo && todo.category === "숙제") return { text: NEXT_CLASS, tone: "next" };
-  return null;
+  if (!todo || todo.category !== "숙제") return null;
+  const guess = effectiveDue(todo, schedule, today);
+  if (guess) {
+    const label = formatDue(guess, today);
+    const [, m, d] = guess.split("-").map(Number);
+    const weekday = DAY_NAMES[new Date(guess.slice(0, 4), m - 1, d).getDay()];
+    // "오늘"·"내일"·"지났어요"는 그대로 두고, 먼 날짜만 요일로 바꿔 준다
+    if (label && label.tone === "later") return { text: weekday + "요일까지", tone: "next" };
+    if (label) return label;
+  }
+  return { text: NEXT_CLASS, tone: "next" };
 }
 
 /** Date → "YYYY-MM-DD" (그 사람이 사는 곳 기준. toISOString은 UTC라 하루가 밀린다) */
@@ -186,15 +243,57 @@ export function shortDate(dateStr) {
  *
  * (원본 배열은 건드리지 않는다)
  */
-export function selectToday(todos, today = new Date()) {
+export function selectToday(todos, today = new Date(), schedule) {
   const limit = toDateValue(today instanceof Date && !isNaN(today) ? today : new Date());
   return (todos || []).filter((todo) => {
     if (!todo) return false;
     if (todo.urgent === true) return true;
-    const date = todo.date;
-    if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+    // 날짜가 비어 있어도 학원 요일을 알면 그날이 기한이다
+    const date = effectiveDue(todo, schedule, today);
+    if (!date) return false;
     return date <= limit;   // "YYYY-MM-DD"는 문자열 비교로도 날짜순이 맞는다
   });
+}
+
+/**
+ * "미리 해두면 좋은 숙제"를 고른다.
+ *
+ * 학원 숙제는 항목이 여러 개인데 마감 전날 몰아서 하면 버겁다. 남은 항목 수를
+ * 남은 날수로 나눠, **오늘 몫을 채우고도 남을 만큼 큰 숙제**만 골라 권한다.
+ * 오늘 몫(selectToday)에 이미 든 것과 마감이 지난 것은 제외한다 — 그건 "미리"가 아니다.
+ *
+ * @returns {Array<{todo: object, 남은항목: number, 남은날: number, 오늘몫: number}>}
+ *          권할 게 없으면 빈 배열. 급한 순서(하루에 해야 할 몫이 큰 순)로 돌려준다.
+ */
+export function suggestAhead(todos, today = new Date(), schedule, options) {
+  // 항목이 3개 이상이고, 하루에 1개보다 많이 해야 하면 권한다.
+  // (실제 숙제로 맞춰 본 값 — 2개/일로 두면 "4개를 3일 안에" 같은 흔한 경우가 빠진다)
+  const minPerDay = (options && options.minPerDay) || 1.2;
+  const minItems = (options && options.minItems) || 3;
+  const limit = toDateValue(today);
+  const todayIds = new Set(selectToday(todos, today, schedule).map((t) => t.id));
+
+  const out = [];
+  for (const todo of todos || []) {
+    if (!todo || todo.completed || todayIds.has(todo.id)) continue;
+    const due = effectiveDue(todo, schedule, today);
+    if (!due || due <= limit) continue;
+    const counts = countTodo(todo);
+    const 남은항목 = counts.총 - counts.완료;
+    if (남은항목 < minItems) continue;
+    const [y, m, d] = due.split("-").map(Number);
+    const 남은날 = Math.max(
+      1,
+      Math.round(
+        (new Date(y, m - 1, d) - new Date(today.getFullYear(), today.getMonth(), today.getDate())) /
+          86400000
+      )
+    );
+    const perDay = 남은항목 / 남은날;
+    if (perDay < minPerDay) continue;
+    out.push({ todo, 남은항목, 남은날, 오늘몫: Math.ceil(perDay) });
+  }
+  return out.sort((a, b) => b.남은항목 / b.남은날 - a.남은항목 / a.남은날);
 }
 
 /**

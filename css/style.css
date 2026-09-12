@@ -1979,3 +1979,96 @@ textarea.field {
   margin-left: 10px;
   vertical-align: middle;
 }
+
+/* --- 미리 해두면 좋아요 (딸 화면) ------------------------------------------
+   마감이 아직 남았지만 양이 많은 숙제를 알려 준다. 오늘 몫 바로 아래에 둔다. */
+.ahead {
+  margin: 0 0 18px;
+  padding: 12px 14px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.ahead-title {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.ahead-item {
+  display: block;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ahead-item:active {
+  background: var(--progress-soft);
+}
+
+.ahead-name {
+  display: block;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.ahead-note {
+  display: block;
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--ink-faint);
+}
+
+/* --- 학원 요일 설정 (엄마 현황) -------------------------------------------- */
+.schedule-box {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.schedule-hint {
+  margin: 8px 0;
+  font-size: 12.5px;
+  color: var(--ink-faint);
+}
+
+.schedule-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.schedule-row .title-subject {
+  width: 42px;
+  margin-right: 4px;
+  text-align: center;
+}
+
+.day-btn {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--pill);
+  background: var(--surface);
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.day-btn[aria-pressed="true"] {
+  background: var(--cat-homework);
+  border-color: var(--cat-homework);
+  color: #fff;
+  font-weight: 700;
+}

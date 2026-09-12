@@ -277,6 +277,73 @@ export function listenTodos(studentId, onChange, onError) {
   );
 }
 
+// --- 학원 요일 ---------------------------------------------------------------
+// 경로: students/{studentId}/meta/schedule  ({ items: [{subject, days, name}], at })
+//
+// "다음 수업까지"가 기본값인 학원 숙제를 **실제 날짜**로 바꾸는 데 쓴다.
+// 기기가 아니라 Firestore에 두는 이유는 이름(profile)과 같다 — 엄마 화면에서 고치면
+// 딸 화면도 같은 요일을 봐야 하기 때문이다.
+// days: 0=일 … 6=토
+
+/** 학원 요일 기본값 (엄마 화면에서 고칠 수 있다) */
+export const DEFAULT_SCHEDULE = {
+  daughter1: [
+    { subject: "영어", name: "영어학원", days: [2, 4] },
+    { subject: "수학", name: "수학학원", days: [1, 3, 5] },
+    { subject: "과학", name: "과학학원", days: [6] },
+    { subject: "국어", name: "국어학원", days: [0] },
+  ],
+  daughter2: [
+    { subject: "영어", name: "영어학원", days: [2, 4] },
+    { subject: "수학", name: "황소수학", days: [3, 5] },
+  ],
+};
+
+/** 학원 한 줄을 저장할 모양으로 다듬는다 */
+function normalizeAcademy(item) {
+  const subject = SUBJECTS.includes(item && item.subject) ? item.subject : null;
+  if (!subject) return null;
+  const days = Array.isArray(item.days)
+    ? [...new Set(item.days.map(Number).filter((d) => Number.isInteger(d) && d >= 0 && d <= 6))].sort()
+    : [];
+  if (days.length === 0) return null;
+  const name = typeof item.name === "string" ? item.name.slice(0, 20) : "";
+  return { subject, days, name };
+}
+
+/** 학원 요일 저장 (통째로 덮어쓴다) */
+export async function setSchedule(studentId, items) {
+  assertStudentId(studentId);
+  const clean = (Array.isArray(items) ? items : [])
+    .map(normalizeAcademy)
+    .filter(Boolean)
+    .slice(0, 20);
+  await setDoc(doc(db, "students", studentId, "meta", "schedule"), {
+    items: clean,
+    at: serverTimestamp(),
+  });
+}
+
+/**
+ * 학원 요일 구독. 아직 저장한 적이 없으면 기본값을 돌려준다.
+ * @returns {() => void} 구독 해제 함수
+ */
+export function listenSchedule(studentId, onChange) {
+  assertStudentId(studentId);
+  return onSnapshot(
+    doc(db, "students", studentId, "meta", "schedule"),
+    (snap) => {
+      const items = snap.exists() ? snap.get("items") : null;
+      const clean = (Array.isArray(items) ? items : []).map(normalizeAcademy).filter(Boolean);
+      onChange(clean.length ? clean : DEFAULT_SCHEDULE[studentId] || []);
+    },
+    (err) => {
+      console.warn("[db] 학원 요일 구독 실패:", err.code || err.message);
+      onChange(DEFAULT_SCHEDULE[studentId] || []);
+    }
+  );
+}
+
 // --- 응원 한마디 -------------------------------------------------------------
 // 경로: students/{studentId}/meta/cheer  ({ text, at })
 // 할일이 아니라 오늘 하루만 띄우는 메시지라 todos와 분리해 둔다.

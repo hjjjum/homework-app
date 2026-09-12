@@ -11,6 +11,7 @@ import {
   listenTodos,
   listenCheer,
   listenProfile,
+  listenSchedule,
   setProfile,
   MAX_NAME_LENGTH,
   CATEGORIES,
@@ -36,6 +37,7 @@ import {
   newFromMom,
   arrangeTodos,
   SORT_MODES,
+  suggestAhead,
 } from "./todo-logic.js";
 import { createDuePicker, createUrgentToggle, urgentIcon } from "./due-picker.js";
 import { createTodoEditor, makeEditDraft } from "./todo-editor.js";
@@ -132,6 +134,8 @@ export function initApp(studentId) {
     confirmingAll: false,
     // 보기 순서: "urgent"(급한 순) | "subject"(과목별). 이 기기에 기억해 둔다.
     sort: readSort(),
+    // 학원 요일 [{subject, days, name}] — 날짜 없는 숙제의 기한을 여기서 계산한다
+    schedule: [],
     // 캡쳐 글을 입력칸에 넣었을 때 그 사진. 그 글로 추가하는 할일에 붙인다.
     pendingPhoto: null,
     // 직전 구독에서 보고 있던 id들. null이면 아직 첫 목록을 못 받았다는 뜻이라,
@@ -224,7 +228,7 @@ export function initApp(studentId) {
    * 100%가 영영 오지 않고, 그러면 스티커도 영영 안 나온다. 전체 상황은 옆에 작게만 둔다.
    */
   function renderProgress() {
-    const p = calcProgress(selectToday(state.todos))[ALL];
+    const p = calcProgress(selectToday(state.todos, new Date(), state.schedule))[ALL];
     const whole = calcProgress(state.todos)[ALL];
     rewards.setProgress(p);
     if (els.progressAll) {
@@ -335,7 +339,7 @@ export function initApp(studentId) {
     );
 
     // 마감일. 숙제는 날짜를 안 정해도 "다음 수업까지"가 기본으로 붙는다.
-    const due = dueLabel(todo);
+    const due = dueLabel(todo, new Date(), state.schedule);
     if (due) meta.appendChild(makeEl("span", "due due--" + due.tone, due.text));
     if (todo.addedBy === "mom") meta.appendChild(makeEl("span", "from-mom", "엄마가 보냄"));
 
@@ -477,6 +481,45 @@ export function initApp(studentId) {
     }
   }
 
+  /**
+   * "미리 해두면 좋아요" 안내.
+   * 마감이 아직 남았지만 하루에 해야 할 몫이 큰 숙제를 알려 준다. 데이터는 건드리지 않고
+   * 안내만 하며, 누르면 그 숙제로 데려간다 — 오늘 몫으로 옮겨 마감을 흐리지 않기 위해서다.
+   */
+  function renderAhead() {
+    if (!els.todaySection) return;
+    if (!els.aheadBox) {
+      els.aheadBox = makeEl("div", "ahead");
+      els.aheadBox.addEventListener("click", (e) => {
+        const btn = e.target.closest("[data-ahead-id]");
+        if (btn) scrollToTodo(btn.dataset.aheadId);
+      });
+      els.todaySection.insertAdjacentElement("afterend", els.aheadBox);
+    }
+    const ahead = suggestAhead(state.todos, new Date(), state.schedule).slice(0, 2);
+    els.aheadBox.textContent = "";
+    els.aheadBox.hidden = ahead.length === 0;
+    if (ahead.length === 0) return;
+
+    els.aheadBox.appendChild(makeEl("p", "ahead-title", "미리 해두면 좋아요"));
+    for (const { todo, 남은항목, 남은날, 오늘몫 } of ahead) {
+      const btn = makeEl("button", "ahead-item");
+      btn.type = "button";
+      btn.dataset.aheadId = todo.id;
+      const due = dueLabel(todo, new Date(), state.schedule);
+      btn.appendChild(makeEl("span", "ahead-name", firstLine(todo.title)));
+      btn.appendChild(
+        makeEl(
+          "span",
+          "ahead-note",
+          남은항목 + "개 남았는데 " + (due ? due.text + " " : "") +
+            "— 오늘 " + 오늘몫 + "개만 해두면 편해요 (" + 남은날 + "일 남음)"
+        )
+      );
+      els.aheadBox.appendChild(btn);
+    }
+  }
+
   function render() {
     const visible = filterByCategory(state.todos, state.filter);
     const split = splitByCompleted(visible);
@@ -489,7 +532,7 @@ export function initApp(studentId) {
     renderProgress();
 
     // 오늘 몫과 나머지로 나눈다. 오늘 몫만 진행 링과 스티커의 분모가 된다.
-    const todayIds = new Set(selectToday(state.todos).map((t) => t.id));
+    const todayIds = new Set(selectToday(state.todos, new Date(), state.schedule).map((t) => t.id));
     const todayActive = active.filter((t) => todayIds.has(t.id));
     const restActive = active.filter((t) => !todayIds.has(t.id));
 
@@ -500,12 +543,13 @@ export function initApp(studentId) {
       { canPush: true }
     );
     if (els.todayCount) {
-      const done = calcProgress(selectToday(state.todos))[ALL];
+      const done = calcProgress(selectToday(state.todos, new Date(), state.schedule))[ALL];
       els.todayCount.textContent = done.총 > 0 ? done.완료 + " / " + done.총 : "";
     }
 
     const emptyText =
       state.filter === ALL ? "할 일이 없어요. 오늘은 여유롭네요." : state.filter + " 항목이 없어요.";
+    renderAhead();
     renderList(els.activeList, restActive, emptyText);
     if (els.restTitle) els.restTitle.hidden = restActive.length === 0;
 
@@ -1079,6 +1123,13 @@ export function initApp(studentId) {
     renderTitle();
   });
 
+  // 학원 요일. 날짜가 비어 있는 숙제("다음 수업까지")의 기한을 이걸로 계산한다.
+  // 엄마 화면에서 고치면 여기도 바로 따라 바뀐다.
+  const unsubscribeSchedule = listenSchedule(studentId, (schedule) => {
+    state.schedule = schedule;
+    render();
+  });
+
   // --- 실시간 구독 ---------------------------------------------------------
 
   // 엄마가 보낸 응원 한마디. 오늘 것만 헤더 아래에 띄운다.
@@ -1141,6 +1192,7 @@ export function initApp(studentId) {
       unsubscribe();
       unsubscribeCheer();
       unsubscribeProfile();
+      unsubscribeSchedule();
     },
   };
 }
