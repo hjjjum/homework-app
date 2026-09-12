@@ -10,7 +10,7 @@
 // 파일을 고친 뒤 배포할 때는 아래 CACHE_VERSION을 올려야 사용자에게 새 버전이 간다.
 // ---------------------------------------------------------------------------
 
-const CACHE_VERSION = "v41";
+const CACHE_VERSION = "v42";
 const CACHE_NAME = "homework-app-" + CACHE_VERSION;
 
 /** 설치할 때 미리 받아둘 파일들. 상대 경로라 GitHub Pages 하위 경로에서도 동작한다. */
@@ -30,6 +30,7 @@ const PRECACHE = [
   "./js/ocr.js",
   "./js/ocr-table.js",
   "./js/photo.js",
+  "./js/push.js",
   "./js/stickers.js",
   "./js/rewards.js",
   "./js/due-picker.js",
@@ -240,6 +241,47 @@ self.addEventListener("fetch", (event) => {
   }
 
   event.respondWith(staleWhileRevalidate(request));
+});
+
+// --- 저녁 알림 ---------------------------------------------------------------
+// 보내는 쪽은 GitHub Actions (tools/send-evening-reminder.mjs).
+// 본문은 {title, body, url} 모양의 JSON이다. 형식이 깨져도 기본 문구로 띄운다 —
+// 크롬은 푸시를 받고 알림을 안 띄우면 "조용한 푸시"로 보고 구독을 끊어버린다.
+
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch (err) {
+    data = { body: event.data ? event.data.text() : "" };
+  }
+  const title = data.title || "오늘 숙제 확인";
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: data.body || "남은 숙제를 확인해 보세요.",
+      icon: data.icon || "./icons/daughter1-192.png",
+      badge: data.icon || "./icons/daughter1-192.png",
+      tag: data.tag || "evening",     // 같은 tag는 덮어쓴다 (알림이 쌓이지 않게)
+      renotify: true,
+      data: { url: data.url || "./index.html" },
+    })
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const target = (event.notification.data && event.notification.data.url) || "./index.html";
+  event.waitUntil(
+    (async () => {
+      const url = new URL(target, self.location.href).href;
+      const tabs = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      // 이미 열려 있는 창이 있으면 그 창을 쓴다 (앱이 여러 개 열리지 않게)
+      for (const tab of tabs) {
+        if (tab.url.startsWith(url.split("?")[0]) && "focus" in tab) return tab.focus();
+      }
+      if (self.clients.openWindow) return self.clients.openWindow(url);
+    })()
+  );
 });
 
 // 페이지에서 새 버전 즉시 적용을 요청할 때

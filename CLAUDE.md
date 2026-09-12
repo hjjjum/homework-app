@@ -78,6 +78,9 @@ mom.html        →  js/mom.js  ┤→  js/db.js  →  js/firebase-config.js  �
   깔거나 폰을 바꿔도 이어져야 하기 때문이다. 기기 값으로 먼저 그리고(즉시·오프라인), 클라우드
   값이 오면 `mergeStreak()`으로 합친다 — **마지막으로 끝낸 날이 더 최근인 쪽**을 따르고 최고
   기록은 큰 값을 쓴다. 새로 깐 기기의 빈 값이 클라우드 기록을 덮어쓰지 않게 하려는 것이다.
+  **다시 시작**: 클라우드 문서에 `resetAt`이 새로 찍히면 기기가 자기 기록을 버리고 그 값을 따른다
+  (합치기 규칙대로면 기기의 옛 기록이 이겨서 0으로 못 내려간다). 엄마 화면 현황의
+  "연속 기록 다시 시작"이 `resetStreak()`으로 그 표시를 찍는다.
   스티커 판정은 **할일 목록을 실제로 받은 뒤에만** 한다(`setProgress(p, loaded)`) — 목록이
   비어 있거나 일부만 도착한 한순간에 "다 끝냈다"로 보여 엉뚱하게 스티커가 나간 적이 있다.
   **연속 달성은 어제 했을 때만 이어진다** — `advanceStreak()`이 그 판정을 하고, 하루라도 건너뛰면
@@ -290,6 +293,25 @@ node tools/make-icons.mjs      # icons/{daughter1,daughter2,mom}-{180,192,512}.p
   한가운데 원(반지름 0.4) 안에 둔다. 배경은 끝까지 채운다.
 - 아이콘을 바꾸면 매니페스트 3개의 `theme_color`와 각 HTML의 `<meta name="theme-color">`도
   같은 색으로 맞춘다 (상태 표시줄과 아이콘이 이어져 보인다).
+
+## 저녁 알림 (웹 푸시)
+
+앱에는 서버가 없다. 그래서 **보내는 일은 GitHub Actions가 맡는다** —
+`.github/workflows/evening-reminder.yml`이 매일 한국시간 20시에
+`tools/send-evening-reminder.mjs`를 돌린다. 그 스크립트는 Firestore REST로 할일과 학원 요일을
+읽고, **앱과 같은 계산**(`js/todo-logic.js`를 그대로 import)으로 오늘 몫을 세어,
+남은 게 있는 아이의 기기에만 보낸다. 남은 게 없으면 보내지 않는다 —
+매일 울리는 알림은 금세 무시하게 되기 때문이다.
+
+- 받을 준비는 `js/push.js`(권한 요청·구독)와 `service-worker.js`의 `push` / `notificationclick`이 한다.
+  **푸시를 받고 알림을 안 띄우면 크롬이 구독을 끊으므로**, 내용이 깨져도 기본 문구로 반드시 띄운다.
+- 구독은 `students/{id}/push/{subId}`에 둔다. 주소가 노출돼도 VAPID **비밀 키** 없이는 못 보낸다.
+  비밀 키는 저장소에 없고 GitHub Secrets(`VAPID_PRIVATE_KEY`)에 있다.
+  공개 키는 `js/push.js`의 `VAPID_PUBLIC_KEY` — **바꾸면 기존 구독이 전부 무효가 된다.**
+- 알림은 **기기마다** 켠다(구독이 기기에 매여 있다). 딸 화면 "보기" 줄 오른쪽의 🔔 단추.
+- 죽은 구독(404/410)은 보내면서 지운다. 안 지우면 매일 실패한다.
+- 손으로 시험하려면 Actions 탭 → 이 워크플로 → Run workflow (dry 옵션은 보내지 않고 문구만 찍는다).
+  로컬에서도 `node tools/send-evening-reminder.mjs --dry` 로 돌아간다(web-push 설치 없이).
 
 ## 카톡 등에서 "공유"로 받기 (엄마 화면)
 

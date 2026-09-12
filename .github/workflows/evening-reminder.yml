@@ -1,0 +1,33 @@
+# 저녁에 남은 숙제를 알려 준다 (웹 푸시).
+#
+# 앱에는 서버가 없어서 보내는 일을 여기서 맡는다. 남은 숙제가 없으면 보내지 않는다.
+# 비밀 키는 저장소에 두지 않는다 — GitHub Secrets의 VAPID_PRIVATE_KEY를 쓴다.
+#   (저장소 → Settings → Secrets and variables → Actions → New repository secret)
+#
+# 손으로 돌려 보려면: Actions 탭 → 이 워크플로 → Run workflow
+name: 저녁 숙제 알림
+
+on:
+  schedule:
+    # 한국시간 20:00 = UTC 11:00 (GitHub 예약은 UTC 기준이고, 몇 분 늦을 수 있다)
+    - cron: "0 11 * * *"
+  workflow_dispatch:
+    inputs:
+      dry:
+        description: "보내지 않고 무엇을 보낼지만 확인"
+        type: boolean
+        default: false
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      # 앱은 npm을 쓰지 않는다. 보내는 쪽에서만 web-push가 필요하다.
+      - run: npm install --no-save web-push@3
+      - run: node tools/send-evening-reminder.mjs ${{ inputs.dry && '--dry' || '' }}
+        env:
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}

@@ -48,6 +48,7 @@ import { initRewards } from "./rewards.js";
 import { createSticker, STICKERS, GROUPS } from "./stickers.js";
 import { showNotice } from "./notice.js";
 import { compressPhoto, createPhotoBlock, rememberPhoto } from "./photo.js";
+import { pushState, enablePush, disablePush } from "./push.js";
 
 // 순수 로직은 todo-logic.js, 입력 파싱은 sources/ 아래로 분리되어 있다.
 // 콘솔이나 다른 화면에서 쓰기 편하도록 여기서 다시 내보낸다.
@@ -136,6 +137,8 @@ export function initApp(studentId) {
     sort: readSort(),
     // 학원 요일 [{subject, days, name}] — 날짜 없는 숙제의 기한을 여기서 계산한다
     schedule: [],
+    // 저녁 알림: "unsupported" | "off" | "on" | "blocked" | "" (아직 모름)
+    push: "",
     // 캡쳐 글을 입력칸에 넣었을 때 그 사진. 그 글로 추가하는 할일에 붙인다.
     pendingPhoto: null,
     // 직전 구독에서 보고 있던 id들. null이면 아직 첫 목록을 못 받았다는 뜻이라,
@@ -480,6 +483,44 @@ export function initApp(studentId) {
       btn.setAttribute("aria-pressed", String(state.sort === mode.id));
       els.sortBar.appendChild(btn);
     }
+    renderPushButton();
+  }
+
+  /**
+   * 저녁 알림 켜기/끄기. 알림은 **기기마다** 켠다 (구독이 그 기기에 매여 있다).
+   * 보내는 일은 앱이 하지 않는다 — 매일 저녁 GitHub Actions가 남은 숙제를 보고 보낸다.
+   */
+  function renderPushButton() {
+    if (!els.sortBar) return;
+    if (state.push === "unsupported") return;   // 이 브라우저는 알림을 못 받는다
+    const label =
+      state.push === "on" ? "🔔 저녁 알림 켜짐"
+      : state.push === "blocked" ? "🔕 알림 차단됨"
+      : "🔔 저녁 알림";
+    const btn = makeEl("button", "sort-btn push-btn", label);
+    btn.type = "button";
+    btn.setAttribute("aria-pressed", String(state.push === "on"));
+    btn.disabled = state.push === "blocked" || state.push === "";
+    btn.title =
+      state.push === "blocked"
+        ? "폰 설정에서 이 앱의 알림을 허용해 주세요."
+        : "저녁에 남은 숙제를 알려줘요.";
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      try {
+        state.push = state.push === "on" ? await disablePush(studentId) : await enablePush(studentId);
+        setStatus(
+          state.push === "on" ? "저녁에 남은 숙제를 알려줄게요."
+          : state.push === "blocked" ? "폰 설정에서 알림을 허용해야 받을 수 있어요."
+          : "저녁 알림을 껐어요."
+        );
+      } catch (err) {
+        reportError("알림 설정", err);
+        state.push = await pushState();
+      }
+      render();
+    });
+    els.sortBar.appendChild(btn);
   }
 
   /**
@@ -1126,6 +1167,12 @@ export function initApp(studentId) {
 
   // 학원 요일. 날짜가 비어 있는 숙제("다음 수업까지")의 기한을 이걸로 계산한다.
   // 엄마 화면에서 고치면 여기도 바로 따라 바뀐다.
+  // 이 기기가 저녁 알림을 받고 있는지 확인한다 (단추 모양이 여기에 따라 달라진다)
+  pushState().then((value) => {
+    state.push = value;
+    render();
+  });
+
   const unsubscribeSchedule = listenSchedule(studentId, (schedule) => {
     state.schedule = schedule;
     render();

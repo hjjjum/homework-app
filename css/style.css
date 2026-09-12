@@ -2110,3 +2110,14 @@ textarea.field {
   gap: 4px;
   margin-top: 8px;
 }
+
+/* 저녁 알림 단추 — 보기 순서 줄 오른쪽 끝에 둔다 */
+.sort-bar .push-btn {
+  margin-left: auto;
+}
+
+.sort-bar .push-btn[aria-pressed="true"] {
+  background: var(--progress-soft);
+  border-color: var(--progress);
+  color: var(--progress);
+}
