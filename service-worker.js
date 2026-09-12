@@ -10,7 +10,7 @@
 // 파일을 고친 뒤 배포할 때는 아래 CACHE_VERSION을 올려야 사용자에게 새 버전이 간다.
 // ---------------------------------------------------------------------------
 
-const CACHE_VERSION = "v37";
+const CACHE_VERSION = "v38";
 const CACHE_NAME = "homework-app-" + CACHE_VERSION;
 
 /** 설치할 때 미리 받아둘 파일들. 상대 경로라 GitHub Pages 하위 경로에서도 동작한다. */
@@ -55,6 +55,15 @@ const PRECACHE = [
   "./icons/mom-192.png",
   "./icons/mom-512.png",
 ];
+
+/**
+ * 다른 앱에서 "공유"로 보낸 것을 잠깐 넣어 두는 곳 (mom.js가 꺼내 쓰고 지운다).
+ * 공유는 POST로 들어오는데 정적 호스팅은 POST를 받을 수 없다. 그래서 서비스워커가
+ * 가로채 형식(formData)을 풀어 캐시에 넣고, 화면을 ?share=ready 로 보낸다.
+ */
+const SHARE_CACHE = "homework-share";
+const SHARE_TEXT_URL = "./shared-text.json";
+const SHARE_FILE_URL = "./shared-file";
 
 /** Firebase SDK가 올라오는 CDN. 버전이 URL에 박혀 있어 내용이 바뀌지 않는다. */
 const CDN_PREFIX = "https://www.gstatic.com/firebasejs/";
@@ -160,6 +169,41 @@ async function networkFirst(request) {
 
 self.addEventListener("fetch", (event) => {
   const { request } = event;
+  const shareUrl = new URL(request.url);
+
+  // 카톡 등에서 "공유"로 보낸 글·사진 (manifest-mom.json의 share_target)
+  if (request.method === "POST" && shareUrl.searchParams.has("share")) {
+    event.respondWith(
+      (async () => {
+        try {
+          const form = await request.formData();
+          const text = [form.get("text"), form.get("url"), form.get("title")]
+            .filter((v) => typeof v === "string" && v.trim())
+            .join("\n");
+          const files = form.getAll("photos").filter((f) => f && f.size > 0);
+          const cache = await caches.open(SHARE_CACHE);
+          await cache.put(
+            SHARE_TEXT_URL,
+            new Response(JSON.stringify({ text, hasFile: files.length > 0 }), {
+              headers: { "Content-Type": "application/json" },
+            })
+          );
+          if (files[0]) {
+            await cache.put(
+              SHARE_FILE_URL,
+              new Response(files[0], { headers: { "Content-Type": files[0].type || "image/png" } })
+            );
+          }
+        } catch (err) {
+          console.warn("[sw] 공유 받기 실패:", err.message);
+        }
+        // 303 으로 보내야 새로고침해도 POST가 다시 가지 않는다
+        return Response.redirect("./mom.html?share=ready", 303);
+      })()
+    );
+    return;
+  }
+
   if (request.method !== "GET") return;
 
   const url = new URL(request.url);

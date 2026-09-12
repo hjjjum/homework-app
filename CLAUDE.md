@@ -264,6 +264,19 @@ node tools/make-icons.mjs      # icons/{daughter1,daughter2,mom}-{180,192,512}.p
 - 아이콘을 바꾸면 매니페스트 3개의 `theme_color`와 각 HTML의 `<meta name="theme-color">`도
   같은 색으로 맞춘다 (상태 표시줄과 아이콘이 이어져 보인다).
 
+## 카톡 등에서 "공유"로 받기 (엄마 화면)
+
+`manifest-mom.json`의 `share_target` 덕분에 안드로이드에서 카톡 공유 목록에 "엄마 화면"이 뜬다.
+공유는 **POST**로 들어오는데 정적 호스팅은 POST를 받을 수 없어서, `service-worker.js`가 가로채
+formData를 풀어 `homework-share` 캐시에 넣고 303으로 화면을 연다. mom.js의 `consumeShared()`가
+그걸 꺼내 글이면 입력칸에, 사진이면 곧장 `readImage()`로 넘기고 보관함을 비운다.
+
+- **주소의 `?share=ready` 표시에 기대지 않는다** — 서버에 따라 리다이렉트에서 물음표 뒤가 떨어진다
+  (로컬 `serve`가 그렇다). 보관함에 든 게 있으면 처리하고 비우므로 한 번만 처리된다.
+- 공유받기는 **크롬으로 설치한 PWA에서만** 된다. 딸들이 쓰는 apk(TWA)는 그 안에 인텐트가 박혀 있어
+  apk를 다시 만들어야 한다. 엄마 화면은 "홈 화면에 추가"로 설치되어 있어야 목록에 뜬다.
+- POST 처리는 서비스워커 `fetch` 핸들러에서 **`request.method !== "GET"` 조기 반환보다 먼저** 와야 한다.
+
 ## PWA / 서비스워커
 
 정적 파일은 `service-worker.js`가 캐싱한다. **Firestore 요청에는 절대 끼어들지 않는다** —

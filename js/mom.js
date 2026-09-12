@@ -1269,6 +1269,45 @@ export function initMom() {
     });
   }
 
+  // --- 카톡 등에서 "공유"로 들어온 것 받기 ---------------------------------
+  // 서비스워커가 공유받은 글·사진을 캐시에 넣고 ?share=ready 로 화면을 연다.
+  // 여기서 꺼내어 평소 붙여넣기와 똑같이 처리하고, 캐시는 비운다 (다음 공유와 섞이지 않게).
+  const SHARE_CACHE = "homework-share";
+
+  async function consumeShared() {
+    if (!window.caches) return;
+    // 주소의 ?share=ready 는 지운다 (새로고침 때 또 처리하지 않도록). 다만 그 표시에
+    // 기대지는 않는다 — 서버에 따라 리다이렉트에서 물음표 뒤가 떨어져 나가기 때문이다.
+    // 보관함에 들어온 게 있으면 처리하고 비우므로, 표시가 없어도 한 번만 처리된다.
+    if (location.search) history.replaceState(null, "", location.pathname);
+    try {
+      const cache = await caches.open(SHARE_CACHE);
+      const textRes = await cache.match("./shared-text.json");
+      const fileRes = await cache.match("./shared-file");
+      if (!textRes && !fileRes) return;
+      const info = textRes ? await textRes.json() : null;
+      await cache.delete("./shared-text.json");
+      await cache.delete("./shared-file");
+
+      if (fileRes) {
+        setOcrStatus("공유받은 사진을 읽는 중...");
+        await readImage(await fileRes.blob());
+        return;
+      }
+      const text = (info && info.text ? info.text : "").trim();
+      if (text && els.rawInput) {
+        els.rawInput.value = els.rawInput.value.trim()
+          ? els.rawInput.value.trim() + "\n" + text
+          : text;
+        setInputStatus("공유받은 글을 담았습니다. \"" +
+          (getSource(state.sourceId).actionLabel || "항목 만들기") + "\"를 눌러주세요.");
+        els.rawInput.focus();
+      }
+    } catch (err) {
+      console.warn("[mom] 공유 받기 실패", err);
+    }
+  }
+
   // --- 시작 ---------------------------------------------------------------
 
   // 이름·아이콘은 딸 화면에서 바꾼다. 입력 탭의 받는 사람 단추에도 쓰이므로
@@ -1291,6 +1330,7 @@ export function initMom() {
   renderSourcePicker();
   renderDrafts();
   renderWatch();
+  consumeShared();
 
   return {
     state,
