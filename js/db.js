@@ -344,6 +344,51 @@ export function listenSchedule(studentId, onChange) {
   );
 }
 
+// --- 연속 달성 기록 -----------------------------------------------------------
+// 경로: students/{studentId}/meta/streak  ({ streak, best, lastClearDate, at })
+//
+// 스티커 판·테마 같은 꾸미기는 그 기기에만 두지만(그 기기에서만 의미가 있다),
+// **연속 기록은 아이의 기록이라 기기가 바뀌어도 남아야 한다.**
+// 앱을 지웠다 깔거나 폰을 바꿔도 이어지도록 Firestore에 둔다.
+
+/** 연속 기록 저장 */
+export async function setStreak(studentId, record) {
+  assertStudentId(studentId);
+  const streak = Math.max(0, Math.min(10000, Math.round(Number(record && record.streak) || 0)));
+  const best = Math.max(0, Math.min(10000, Math.round(Number(record && record.best) || 0)));
+  const lastClearDate =
+    typeof (record && record.lastClearDate) === "string" ? record.lastClearDate.slice(0, 10) : "";
+  await setDoc(doc(db, "students", studentId, "meta", "streak"), {
+    streak,
+    best,
+    lastClearDate,
+    at: serverTimestamp(),
+  });
+}
+
+/**
+ * 연속 기록 구독. 저장된 적이 없으면 null을 준다 (그 기기에 있던 값을 그대로 쓰라는 뜻).
+ * @returns {() => void} 구독 해제 함수
+ */
+export function listenStreak(studentId, onChange) {
+  assertStudentId(studentId);
+  return onSnapshot(
+    doc(db, "students", studentId, "meta", "streak"),
+    (snap) => {
+      if (!snap.exists()) return onChange(null);
+      onChange({
+        streak: Number(snap.get("streak")) || 0,
+        best: Number(snap.get("best")) || 0,
+        lastClearDate: snap.get("lastClearDate") || null,
+      });
+    },
+    (err) => {
+      console.warn("[db] 연속 기록 구독 실패:", err.code || err.message);
+      onChange(null);
+    }
+  );
+}
+
 // --- 응원 한마디 -------------------------------------------------------------
 // 경로: students/{studentId}/meta/cheer  ({ text, at })
 // 할일이 아니라 오늘 하루만 띄우는 메시지라 todos와 분리해 둔다.

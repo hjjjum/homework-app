@@ -105,10 +105,24 @@ service cloud.firestore {
               && d.at is timestamp;
         }
 
+        // 연속 달성 기록. 기기를 바꿔도 남도록 Firestore에 둔다.
+        // board(스티커 판)는 아직 기기에만 두지만, 나중에 옮길 때 규칙을 다시
+        // 배포하지 않도록 여기서 미리 받아 둔다.
+        function isValidStreak(d) {
+          return d.keys().hasOnly(['streak', 'best', 'lastClearDate', 'board', 'at'])
+              && d.streak is int && d.streak >= 0 && d.streak <= 10000
+              && d.best is int && d.best >= 0 && d.best <= 10000
+              && (!('lastClearDate' in d)
+                  || (d.lastClearDate is string && d.lastClearDate.size() <= 10))
+              && (!('board' in d) || (d.board is list && d.board.size() <= 50))
+              && d.at is timestamp;
+        }
+
         function isValidMeta(d) {
           return (docId == 'cheer' && isValidCheer(d))
               || (docId == 'profile' && isValidProfile(d))
-              || (docId == 'schedule' && isValidSchedule(d));
+              || (docId == 'schedule' && isValidSchedule(d))
+              || (docId == 'streak' && isValidStreak(d));
         }
 
         allow read:  if isKnownStudent();

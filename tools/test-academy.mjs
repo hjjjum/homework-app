@@ -11,14 +11,16 @@
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 
-// todo-logic.js는 db.js의 상수(CATEGORIES)만 쓰는데, db.js는 Firebase를 CDN에서 불러와
-// Node에서 열 수 없다. 테스트에서는 상수만 든 가짜 db.js로 바꿔 끼운다.
+// todo-logic.js는 상수만, rewards.js는 연속 기록 저장 함수만 db.js에서 쓰는데,
+// db.js는 Firebase를 CDN에서 불러와 Node에서 열 수 없다. 가짜 db.js로 바꿔 끼운다.
 registerHooks({
   resolve(specifier, context, next) {
-    if (specifier === "./db.js" && context.parentURL.endsWith("/todo-logic.js")) {
+    if (specifier === "./db.js") {
       const stub =
         'export const CATEGORIES=["숙제","개인스케줄","공부"];' +
-        'export const SUBJECTS=["수학","영어","과학","국어","사회","기타"];';
+        'export const SUBJECTS=["수학","영어","과학","국어","사회","기타"];' +
+        'export function listenStreak(){ return () => {}; }' +
+        'export async function setStreak(){}';
       return { url: "data:text/javascript," + encodeURIComponent(stub), shortCircuit: true };
     }
     return next(specifier, context);
@@ -28,7 +30,7 @@ registerHooks({
 const { parseAcademyMessage, canonicalSection } = await import("../js/sources/academy-message.js");
 const { arrangeTodos, sortByDeadline, nextClassDate, daysForSubject, effectiveDue, dueLabel, selectToday, suggestAhead,
   weekStart, weeklyReview } = await import("../js/todo-logic.js");
-const { advanceStreak, visibleStreak, dayBefore } = await import("../js/rewards.js");
+const { advanceStreak, visibleStreak, dayBefore, mergeStreak } = await import("../js/rewards.js");
 
 let failed = 0;
 function test(name, fn) {
@@ -292,6 +294,22 @@ test("연속 표시: 끊겼으면 0으로 보여 준다", () => {
   assert.equal(visibleStreak(5, "2026-09-11", "2026-09-12"), 5);   // 어제까지 했다 (오늘 하면 6)
   assert.equal(visibleStreak(5, "2026-09-10", "2026-09-12"), 0);   // 끊겼다
   assert.equal(visibleStreak(0, null, "2026-09-12"), 0);
+});
+
+test("연속 기록 합치기: 더 최근에 끝낸 쪽을 따르고, 최고 기록은 큰 값", () => {
+  const 기기 = { streak: 2, best: 4, lastClearDate: "2026-09-10" };
+  const 클라우드 = { streak: 6, best: 6, lastClearDate: "2026-09-12" };
+  assert.deepEqual(mergeStreak(기기, 클라우드), { streak: 6, best: 6, lastClearDate: "2026-09-12" });
+  assert.deepEqual(mergeStreak(클라우드, 기기), { streak: 6, best: 6, lastClearDate: "2026-09-12" });
+  // 앱을 다시 깐 기기(빈 값)가 클라우드 기록을 덮어쓰면 안 된다
+  assert.deepEqual(mergeStreak({ streak: 0, best: 0, lastClearDate: null }, 클라우드),
+    { streak: 6, best: 6, lastClearDate: "2026-09-12" });
+  // 같은 날이면 큰 쪽
+  assert.deepEqual(
+    mergeStreak({ streak: 3, best: 3, lastClearDate: "2026-09-12" }, { streak: 5, best: 5, lastClearDate: "2026-09-12" }),
+    { streak: 5, best: 5, lastClearDate: "2026-09-12" });
+  // 클라우드에 아직 아무것도 없으면 기기 값 그대로
+  assert.deepEqual(mergeStreak(기기, null), { streak: 2, best: 4, lastClearDate: "2026-09-10" });
 });
 
 console.log(failed ? "\n" + failed + "개 실패" : "\n모두 통과");

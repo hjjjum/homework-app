@@ -2,7 +2,9 @@
  * rewards.js — 성취 연출 + 설정
  *   · 진행 링 / 연속 달성 / 스티커 판 / 완주 축하 / 체크할 때 터지는 조각
  *   · 설정: 테마 5종 · 배경 3종 · 글꼴 4종 · 스티커 골라 담기
- * Firestore를 건드리지 않는다. 전부 그 아이 기기의 localStorage에만 저장된다.
+ * 꾸미기(테마·배경·글꼴·스티커 판)는 전부 그 아이 기기의 localStorage에만 저장된다.
+ * **연속 기록만 Firestore에도 둔다** — 아이의 기록이라 앱을 지웠다 깔거나 폰을 바꿔도
+ * 이어져야 하기 때문이다. 기기 값이 먼저 보이고, 클라우드 값이 오면 합친다(mergeStreak).
  *
  * app.js에서:
  *   import { initRewards } from "./rewards.js";
@@ -13,6 +15,7 @@
  * --------------------------------------------------------------------------- */
 
 import { STICKERS, GROUPS, PICK_CUTE, PICK_CALM, createSticker, getSticker } from "./stickers.js";
+import { listenStreak, setStreak } from "./db.js";
 
 const BOARD_GOAL = 8;
 const KEY = (id) => "hw.rewards." + id;
@@ -81,6 +84,28 @@ export function visibleStreak(streak, lastClearDate, todayStr) {
     return Number(streak) || 0;
   }
   return 0;
+}
+
+/**
+ * 기기에 있던 기록과 클라우드 기록을 합친다.
+ *   - 마지막으로 목표를 끝낸 날이 **더 최근인 쪽**의 연속 일수를 쓴다
+ *   - 같은 날이면 큰 쪽 (한쪽이 아직 못 받은 상태일 수 있다)
+ *   - 최고 기록은 둘 중 큰 값
+ * 한 아이가 기기 하나를 쓰는 게 보통이라 충돌은 드물지만, 폰을 바꾸거나 앱을 다시 깔았을 때
+ * "기기의 빈 값"이 클라우드 기록을 덮어쓰지 않게 하는 것이 핵심이다.
+ * @returns {{streak: number, best: number, lastClearDate: string|null}}
+ */
+export function mergeStreak(local, remote) {
+  const a = local || {};
+  const b = remote || {};
+  const dayA = a.lastClearDate || "";
+  const dayB = b.lastClearDate || "";
+  const winner = dayB > dayA ? b : dayA > dayB ? a : (Number(b.streak) || 0) > (Number(a.streak) || 0) ? b : a;
+  return {
+    streak: Number(winner.streak) || 0,
+    best: Math.max(Number(a.best) || 0, Number(b.best) || 0, Number(winner.streak) || 0),
+    lastClearDate: winner.lastClearDate || null,
+  };
 }
 
 const BIT_COLORS = ["#FF5B3E", "#FF7FAE", "#FFC93C", "#8FD9EE", "#3FA86B", "#B9A7F0"];
@@ -403,18 +428,51 @@ export function initRewards(studentId, options) {
     }
 
     save(studentId, state);
+    pushStreak();
     renderPanel();
     return { sticker: next, streak: state.streak, bonus };
   }
 
   renderPanel();
 
+  // 연속 기록은 Firestore와 맞춘다. 기기 값으로 먼저 그려 두고(즉시·오프라인),
+  // 클라우드 값이 오면 합쳐서 다시 그린다.
+  const stopStreak = listenStreak(studentId, (remote) => {
+    if (!remote) return;
+    const merged = mergeStreak(state, remote);
+    if (merged.streak === state.streak && merged.best === state.best &&
+        merged.lastClearDate === state.lastClearDate) {
+      return;
+    }
+    state.streak = merged.streak;
+    state.best = merged.best;
+    state.lastClearDate = merged.lastClearDate;
+    save(studentId, state);
+    renderPanel();
+  });
+
+  /** 기록을 클라우드에도 올린다. 실패해도(규칙 배포 전·오프라인) 기기 기록은 그대로다. */
+  function pushStreak() {
+    setStreak(studentId, {
+      streak: state.streak,
+      best: state.best,
+      lastClearDate: state.lastClearDate,
+    }).catch((err) => console.warn("[rewards] 연속 기록 올리기 실패:", err.code || err.message));
+  }
+
   return {
     state,
+    /** 화면을 떠날 때 구독을 끊는다 */
+    stop() { stopStreak(); },
     /** 체크 하나가 완료로 바뀔 때: 그 자리에서 조각이 터지고 짧게 진동한다. */
     onCompleted(anchor) { buzz(15); burstAt(anchor); },
-    /** renderProgress() 끝에서 호출. calcProgress()[ALL] 객체를 그대로 넘기면 된다. */
-    setProgress(p) {
+    /**
+      * renderProgress() 끝에서 호출. calcProgress()[ALL] 객체를 그대로 넘기면 된다.
+      * @param {boolean} loaded 할일 목록을 실제로 받아왔는지.
+      *   **받기 전에는 스티커를 주지 않는다** — 목록이 비어 있거나 일부만 있는 한순간에
+      *   "다 끝냈다"로 보여 엉뚱하게 스티커가 나가는 일이 있었다.
+      */
+    setProgress(p, loaded = true) {
       const ratio = p && typeof p.비율 === "number" ? p.비율 : 0;
       renderRing(ratio);
       if (ringHost) {
@@ -423,6 +481,7 @@ export function initRewards(studentId, options) {
       }
       const total = p ? p.총 : 0;
       if (total !== lastTotal) { lastTotal = total; renderPanel(); }
+      if (!loaded) return;   // 아직 목록을 못 받았다 — 기준값(lastRatio)도 잡지 않는다
       if (lastRatio !== null && ratio === 100 && lastRatio < 100 && total > 0) {
         const given = awardOnce();
         if (given) celebrate(given);

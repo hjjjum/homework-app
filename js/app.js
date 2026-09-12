@@ -230,7 +230,8 @@ export function initApp(studentId) {
   function renderProgress() {
     const p = calcProgress(selectToday(state.todos, new Date(), state.schedule))[ALL];
     const whole = calcProgress(state.todos)[ALL];
-    rewards.setProgress(p);
+    // 목록을 실제로 받은 뒤에만 스티커 판정을 맡긴다 (seenIds가 null이면 아직 못 받았다)
+    rewards.setProgress(p, state.seenIds !== null);
     if (els.progressAll) {
       els.progressAll.textContent = whole.총 > 0 ? "전체 " + whole.완료 + "/" + whole.총 : "";
     }
@@ -1193,6 +1194,7 @@ export function initApp(studentId) {
       unsubscribeCheer();
       unsubscribeProfile();
       unsubscribeSchedule();
+      rewards.stop();
     },
   };
 }
