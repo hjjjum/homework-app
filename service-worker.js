@@ -10,7 +10,7 @@
 // 파일을 고친 뒤 배포할 때는 아래 CACHE_VERSION을 올려야 사용자에게 새 버전이 간다.
 // ---------------------------------------------------------------------------
 
-const CACHE_VERSION = "v42";
+const CACHE_VERSION = "v43";
 const CACHE_NAME = "homework-app-" + CACHE_VERSION;
 
 /** 설치할 때 미리 받아둘 파일들. 상대 경로라 GitHub Pages 하위 경로에서도 동작한다. */
@@ -173,7 +173,13 @@ self.addEventListener("fetch", (event) => {
   const shareUrl = new URL(request.url);
 
   // 카톡 등에서 "공유"로 보낸 글·사진 (manifest-mom.json의 share_target)
-  if (request.method === "POST" && shareUrl.searchParams.has("share")) {
+  // 엄마 화면으로 오는 POST는 공유뿐이다. **주소에 표시(?share=1)를 붙이지 않는다** —
+  // POST 공유 주소에 물음표가 붙어 있으면 크롬이 공유 목록에 앱을 올리지 않는 일이 있다.
+  if (
+    request.method === "POST" &&
+    (shareUrl.pathname.endsWith("/mom.html") || shareUrl.pathname.endsWith("/mom") ||
+     shareUrl.searchParams.has("share"))
+  ) {
     event.respondWith(
       (async () => {
         try {
