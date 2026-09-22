@@ -1,0 +1,41 @@
+<!-- 스티커 전체 보기 (개발용). 서비스워커 없는 포트로 연다:
+     npx -y serve . -l 3001  →  http://localhost:3001/tools/sticker-sheet.html -->
+<meta charset="utf-8">
+<title>스티커 전체 보기</title>
+<link rel="stylesheet" href="../css/theme-sticker.css">
+<style>
+  body { font-family: sans-serif; background: #FBF7F0; margin: 16px; }
+  h2 { font-size: 14px; margin: 18px 0 8px; color: #6B625C; }
+  .row { display: flex; flex-wrap: wrap; gap: 14px; }
+  figure { margin: 0; width: var(--fig, 84px); text-align: center; font-size: 11px; color: #6B625C; }
+  figure .sticker { margin: 0 auto 4px; }
+  .small { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 18px; }
+</style>
+<div id="out"></div>
+<script type="module">
+  const { STICKERS, GROUPS, createSticker } = await import("../js/stickers.js?t=" + Date.now());
+  const out = document.getElementById("out");
+  const size = Number(new URLSearchParams(location.search).get("size")) || 72;
+  document.documentElement.style.setProperty("--fig", size + 12 + "px");
+  // ?only=과일,채소 — 몇 묶음만 본다
+  const only = new URLSearchParams(location.search).get("only");
+  for (const g of only ? GROUPS.filter((x) => only.split(",").includes(x)) : GROUPS) {
+    const h = document.createElement("h2");
+    const list = STICKERS.filter((s) => s.group === g);
+    h.textContent = g + " (" + list.length + ")";
+    const row = document.createElement("div");
+    row.className = "row";
+    for (const s of list) {
+      const f = document.createElement("figure");
+      f.appendChild(createSticker(s.id, size));
+      f.append(s.name);
+      row.appendChild(f);
+    }
+    out.append(h, row);
+  }
+  // 실제 화면 크기(34px)로도 본다 — 작게 봐도 무엇인지 알아봐야 한다
+  const small = document.createElement("div");
+  small.className = "small";
+  for (const s of STICKERS) small.appendChild(createSticker(s.id, 34));
+  out.append(Object.assign(document.createElement("h2"), { textContent: "34px (" + STICKERS.length + "종)" }), small);
+</script>

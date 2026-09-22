@@ -91,8 +91,18 @@ mom.html        →  js/mom.js  ┤→  js/db.js  →  js/firebase-config.js  �
 - **js/photo.js** — 캡쳐 원본 사진. `compressPhoto`(문서 한 개에 들어갈 JPEG로 줄이기)와
   `createPhotoBlock`("원본 사진 펼치기" 단추 + 사진, 딸 화면·엄마 현황 공용). 펼칠 때만 읽고
   페이지가 기억하며, 사진을 누르면 두 배로 커져 옆으로 밀어 본다(표 글씨가 작아서).
-- **js/stickers.js** — 손으로 좌표를 적어 만든 스티커 56종(8묶음)(CSS 도형, 이미지 파일 없음).
+- **js/stickers.js** — 손으로 좌표를 적어 만든 SVG 스티커 50종(7묶음), 이미지 파일 없음.
   스티커 판·완료 도장·화면 제목 아이콘이 모두 이 목록을 쓴다.
+  그림 톤은 동글동글한 낙서풍(따뜻한 갈색 테두리 + 파스텔 + 점 눈·볼터치)이고, 색은 파일 위
+  팔레트에서만 고른다. 동물은 `ANIMAL()`(큰 머리 + 작은 몸이 앉은 모양) 하나로 그린다.
+  먹을 것·물건은 **실제 그 물건처럼 보이는 것**이 먼저다 — 캐릭터처럼 얼굴만 붙여 귀엽게
+  만들었더니 옥수수·무지개가 무엇인지 알아보기 힘들었다. 얼굴은 동물과 해·달·별·구름 같은 것에만 붙인다.
+  SVG 안에서 id가 필요한 것(gradient·clipPath·mask)은 쓰지 않는다(한 화면에 같은 스티커가 여러 번 그려진다).
+  **스티커 id는 바꾸지 말 것** — 받은 스티커(localStorage)와 프로필 아이콘(Firestore)이 id로 가리킨다.
+  스티커를 빼면 `RETIRED`에 대신 보여 줄 스티커를 적는다(`canonicalSticker`). 예전에 받은 것이
+  그 스티커로 보이고, rewards.js가 불러올 때 고른 목록·스티커 판을 그 id로 바꿔 둔다.
+  전체 보기: `npx -y serve . -l 3001` → `http://localhost:3001/tools/sticker-sheet?size=110&only=과일,채소`
+  (서비스워커가 없는 포트라 고친 게 바로 보인다).
 - **js/due-picker.js** — 마감일 칩 한 줄(`createDuePicker`)과 급한 일 토글(`createUrgentToggle`).
   엄마 화면·딸 화면·편집 폼이 모두 이것을 쓴다.
 - **js/todo-editor.js** — 이미 저장된 할일 하나를 고치는 인라인 폼(`createTodoEditor`)과

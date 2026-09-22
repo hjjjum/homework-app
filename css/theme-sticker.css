@@ -253,7 +253,7 @@ a:hover { color: color-mix(in oklch, var(--ac) 78%, black); }
 
 /* ---------- 스티커 ---------- */
 .sticker { position: relative; display: block; flex: none; }
-.sticker-part { position: absolute; display: block; }
+.sticker svg { display: block; overflow: visible; }
 
 /* ---------- 보상 패널 ---------- */
 .reward-panel { margin-top: 20px; display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }

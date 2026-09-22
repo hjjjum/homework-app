@@ -14,7 +14,7 @@
  *   rewards.stickerFor(index)                            // 완료 도장에 쓸 스티커 id
  * --------------------------------------------------------------------------- */
 
-import { STICKERS, GROUPS, PICK_CUTE, PICK_CALM, createSticker, getSticker } from "./stickers.js";
+import { STICKERS, GROUPS, PICK_CUTE, PICK_CALM, createSticker, getSticker, canonicalSticker } from "./stickers.js";
 import { listenStreak, setStreak } from "./db.js";
 
 const BOARD_GOAL = 8;
@@ -116,9 +116,10 @@ function load(studentId) {
   try { saved = JSON.parse(localStorage.getItem(KEY(studentId))) || {}; } catch (e) { saved = {}; }
   const teen = studentId === "daughter1";
   return {
-    picked: Array.isArray(saved.picked) && saved.picked.length ? saved.picked
+    // 없어진 스티커는 비슷한 것으로 바꿔 둔다 (고른 목록에 같은 게 두 번 들어가지 않게)
+    picked: Array.isArray(saved.picked) && saved.picked.length ? [...new Set(saved.picked.map(canonicalSticker))]
       : (teen ? PICK_CALM.slice() : PICK_CUTE.slice()),
-    board: Array.isArray(saved.board) ? saved.board : [],
+    board: Array.isArray(saved.board) ? saved.board.map(canonicalSticker) : [],
     streak: Number(saved.streak) || 0,
     best: Number(saved.best) || Number(saved.streak) || 0,   // 최고 기록
     appliedReset: saved.appliedReset || "",                  // 따라간 "다시 시작" 표시
