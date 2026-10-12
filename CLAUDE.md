@@ -22,6 +22,7 @@ npx -y serve . -l 3000        # 로컬 서버 (필수 — 아래 참고)
 ```bash
 node tools/test-ocr-table.mjs  # 숙제표 캡쳐 해석 (js/ocr-table.js)
 node tools/test-academy.mjs    # 학원 메시지 영역 나누기 + 보기 순서 (sources/academy-message.js, todo-logic.js)
+node tools/test-dedupe.mjs     # 같은 숙제 두 번 보내기 막기 (js/dedupe.js)
 ```
 
 ### Firestore 규칙 배포
@@ -103,6 +104,16 @@ mom.html        →  js/mom.js  ┤→  js/db.js  →  js/firebase-config.js  �
   그 스티커로 보이고, rewards.js가 불러올 때 고른 목록·스티커 판을 그 id로 바꿔 둔다.
   전체 보기: `npx -y serve . -l 3001` → `http://localhost:3001/tools/sticker-sheet?size=110&only=과일,채소`
   (서비스워커가 없는 포트라 고친 게 바로 보인다).
+- **js/dedupe.js** — 같은 숙제를 두 번 보내지 않게 하는 순수 함수들. 엄마가 같은 캡쳐·같은
+  카톡 메시지를 두 번 넣는 일이 실제로 생긴다. 두 가지로 알아챈다:
+  **원본 지문**(`batchFingerprint` — 한 번에 만들어진 카드들의 내용으로 만든 해시. 보낸 지문은
+  엄마 기기에 적어 둔다 `hw.mom.sent`, 60일)과 **제목 대조**(`duplicateStudents` — 이미 들어가
+  있는 숙제와 제목이 같은지. 기기를 바꾸거나 학원이 같은 내용을 다시 보낸 경우를 받친다. 14일,
+  완료한 숙제도 본다).
+  **완전히 막지는 않는다** — 학원이 같은 숙제를 다시 내주기도 해서, 중복이면 받는 사람을 꺼 두고
+  "이미 보냄" 뱃지만 단다. 엄마가 다시 켜면 그대로 보내진다.
+  되돌리기(`undoSend`)는 적어 둔 지문도 지운다 — 안 지우면 고쳐서 다시 보낼 때 또 중복으로 잡힌다.
+  이 대조 때문에 **엄마 화면은 입력 탭에서도 두 아이의 할일을 구독한다**(시작할 때 `subscribeWatch`).
 - **js/due-picker.js** — 마감일 칩 한 줄(`createDuePicker`)과 급한 일 토글(`createUrgentToggle`).
   엄마 화면·딸 화면·편집 폼이 모두 이것을 쓴다.
 - **js/todo-editor.js** — 이미 저장된 할일 하나를 고치는 인라인 폼(`createTodoEditor`)과

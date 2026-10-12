@@ -45,6 +45,9 @@ import { createSticker } from "./stickers.js";
 import { initAppearance } from "./appearance.js";
 import { INPUT_SOURCES, getSource } from "./sources/index.js";
 import { recognizeImage, imageFromPaste, parseDueDate } from "./ocr.js";
+import {
+  batchFingerprint, findSentRecord, rememberSent, duplicateStudents, sentDateLabel,
+} from "./dedupe.js";
 
 /**
  * 화면에 보여줄 딸 이름. db의 studentId와 짝을 이룬다.
@@ -203,6 +206,81 @@ export function initMom() {
     } catch (_) { /* 기억 못 해도 보내기는 된다 */ }
   }
 
+  // --- 같은 숙제 두 번 보내지 않기 ---------------------------------------
+  // 같은 캡쳐·같은 카톡 메시지를 두 번 넣는 일이 실제로 생긴다. 판정은 dedupe.js가 하고
+  // 여기서는 기억해 두기(이 기기)와 화면에 알리기만 한다.
+  const SENT_KEY = "hw.mom.sent";
+
+  function readSentLog() {
+    try {
+      return JSON.parse(localStorage.getItem(SENT_KEY) || "{}") || {};
+    } catch (_) {
+      return {};
+    }
+  }
+
+  function saveSentLog(fingerprint, titles) {
+    if (!fingerprint) return;
+    try {
+      localStorage.setItem(SENT_KEY, JSON.stringify(
+        rememberSent(readSentLog(), fingerprint, { at: Date.now(), titles })
+      ));
+    } catch (_) { /* 기억 못 해도 보내기는 된다 */ }
+  }
+
+  /** 보낸 기록에서 뺀다 (되돌리기) */
+  function forgetSent(fingerprints) {
+    try {
+      const log = readSentLog();
+      for (const sig of fingerprints) if (sig) delete log[sig];
+      localStorage.setItem(SENT_KEY, JSON.stringify(log));
+    } catch (_) { /* 못 지워도 받는 사람만 다시 켜면 된다 */ }
+  }
+
+  /**
+   * 방금 만든 카드들이 전에 보낸 것인지 보고, 중복이면 받는 사람을 꺼 둔다.
+   * 완전히 막지는 않는다 — 학원이 같은 숙제를 다시 내주는 경우도 있어서,
+   * 엄마가 받는 사람을 다시 켜면 그대로 보내진다.
+   * @param {Array} drafts 방금 만든 카드들
+   * @returns {string} 화면에 덧붙일 안내 문구 (없으면 빈 문자열)
+   */
+  function markDuplicates(drafts) {
+    const fingerprint = batchFingerprint(drafts);
+    for (const draft of drafts) draft.sourceSig = fingerprint;
+
+    // 1) 같은 원본(사진·글)을 통째로 다시 넣은 경우
+    const sent = findSentRecord(readSentLog(), fingerprint);
+    if (sent) {
+      for (const draft of drafts) {
+        draft.dupSentAt = sent.at;
+        for (const id of STUDENT_IDS) draft.recipients[id] = false;
+      }
+      return " 이 내용은 " + sentDateLabel(sent.at) +
+        "에 이미 보냈습니다. 받는 사람을 꺼 뒀으니, 다시 보내려면 켜주세요.";
+    }
+
+    // 2) 기기를 바꿨거나 학원이 같은 내용을 다시 보낸 경우 — 제목으로 대조한다
+    const todosByStudent = Object.fromEntries(STUDENT_IDS.map((id) => [id, state.kids[id].todos]));
+    const now = Date.now();
+    const dupNames = [];
+    for (const draft of drafts) {
+      const hits = duplicateStudents(draft, todosByStudent, now).filter((id) => draft.recipients[id]);
+      if (!hits.length) continue;
+      draft.dupFor = hits;
+      for (const id of hits) draft.recipients[id] = false;
+      dupNames.push(draft.title);
+    }
+    if (!dupNames.length) return "";
+    return " “" + dupNames.slice(0, 3).join("”, “") + "”" +
+      (dupNames.length > 3 ? " 외 " + (dupNames.length - 3) + "개" : "") +
+      "는 이미 가지고 있어서 받는 사람을 꺼 뒀습니다.";
+  }
+
+  /** 지금 화면에 담긴 카드들이 이 지문으로 이미 만들어졌는지 ("항목 만들기"를 두 번 눌렀을 때) */
+  function alreadyDrafted(fingerprint) {
+    return !!fingerprint && state.drafts.some((d) => d.sourceSig === fingerprint);
+  }
+
   /**
    * 방금 만든 카드들에 지난번 설정을 입힌다.
    * @returns {string} 화면에 덧붙일 안내 문구 (없으면 빈 문자열)
@@ -265,8 +343,12 @@ export function initMom() {
       }
     }
     // 카드를 되살린다. 사진은 방금 지워졌을 수 있으니 다시 올리도록 표시를 지운다.
+    // 되돌렸으니 "이미 보냄" 표시도 지운다 — 안 지우면 고쳐서 다시 보낼 때 중복으로 잡힌다.
+    forgetSent(last.drafts.map((d) => d.sourceSig));
     state.drafts = last.drafts.map((d) => {
       if (d.photo) delete d.photo.ids;
+      delete d.dupSentAt;
+      delete d.dupFor;
       return d;
     });
     setInputStatus(
@@ -341,6 +423,7 @@ export function initMom() {
       return;
     }
 
+    const fresh = [];
     for (const parsed of titles) {
       const draft = makeDraft(parsed);
       if (state.pendingPhoto) draft.photo = state.pendingPhoto;
@@ -348,15 +431,25 @@ export function initMom() {
       if (!draft.title) {
         draft.title = (draft.subject !== "기타" ? draft.subject + " " : "") + "숙제";
       }
-      state.drafts.push(draft);
+      fresh.push(draft);
     }
+
+    // 같은 글로 "항목 만들기"를 두 번 누른 경우 — 같은 카드를 또 담지 않는다
+    if (alreadyDrafted(batchFingerprint(fresh))) {
+      setInputStatus("같은 내용이 이미 아래에 담겨 있습니다.", true);
+      return;
+    }
+
+    state.drafts.push(...fresh);
     if (els.rawInput) els.rawInput.value = "";
     state.pendingPhoto = null;
-    const preset = applyPreset(state.drafts.slice(-titles.length));
+    const preset = applyPreset(fresh);
+    const dup = markDuplicates(fresh);
     setInputStatus(
       (titles.length === 1
         ? "항목 1개를 담았습니다. 받는 사람을 확인하고 보내주세요."
-        : titles.length + "개 항목으로 나눴습니다. 확인 후 보내주세요.") + preset
+        : titles.length + "개 항목으로 나눴습니다. 확인 후 보내주세요.") + preset + dup,
+      false
     );
     renderDrafts();
   }
@@ -407,6 +500,13 @@ export function initMom() {
 
     head.append(title, remove);
 
+    // 전에 보낸 것과 같으면 알려 준다. 받는 사람은 이미 꺼져 있고, 켜면 그대로 보내진다.
+    const dupNote = draft.dupSentAt
+      ? sentDateLabel(draft.dupSentAt) + "에 보낸 내용입니다"
+      : draft.dupFor && draft.dupFor.length
+      ? draft.dupFor.map((id) => STUDENT_LABEL[id]).join(", ") + "가 이미 가지고 있는 숙제입니다"
+      : "";
+
     const chips = makeEl("div", "chip-group");
     for (const c of CATEGORIES) {
       const chip = makeEl("button", "chip chip--" + CATEGORY_KEY[c], c);
@@ -442,7 +542,12 @@ export function initMom() {
       createUrgentToggle(draft.urgent, (v) => { draft.urgent = v; })
     );
 
-    card.append(head, chips, subjectRow, bottom, dueRow);
+    card.append(head);
+    if (dupNote) {
+      const note = makeEl("p", "draft-dup", "이미 보냄 · " + dupNote);
+      card.appendChild(note);
+    }
+    card.append(chips, subjectRow, bottom, dueRow);
 
     // 세부 항목 — 딸 화면에서 하나씩 체크하게 될 목록. 줄을 넣고 빼고 고칠 수 있다.
     // 항목이 없어도 편집기를 보여준다 ([+ 줄 추가]로 바로 나눌 수 있게).
@@ -622,6 +727,10 @@ export function initMom() {
       // 같은 표를 다음에 또 넣으면 이 받는 사람이 미리 잡히도록 기억해 둔다
       const signed = state.drafts.find((d) => d.signature);
       if (signed) savePreset(signed.signature, signed);
+      // 같은 캡쳐·같은 글을 다시 넣었을 때 알아보도록 원본 지문을 적어 둔다
+      for (const sig of new Set(items.map((d) => d.sourceSig).filter(Boolean))) {
+        saveSentLog(sig, items.filter((d) => d.sourceSig === sig).map((d) => d.title));
+      }
       // 되돌리기용으로 보낸 문서와 카드를 들고 있는다
       state.lastSent = { todos: sentDocs, drafts: state.drafts };
       state.drafts = [];
@@ -1285,6 +1394,7 @@ export function initMom() {
 
       if (sections && sections.length > 0) {
         const guessed = [];
+        const fresh = [];
         for (const section of sections) {
           const draft = makeDraft({
             title: section.name || "",
@@ -1298,16 +1408,25 @@ export function initMom() {
           if (!draft.title) {
             draft.title = (draft.subject !== "기타" ? draft.subject + " " : "") + "숙제";
           }
-          state.drafts.push(draft);
+          fresh.push(draft);
         }
-        const preset = applyPreset(state.drafts.slice(-sections.length));
+
+        // 같은 캡쳐를 다시 읽힌 경우 — 같은 카드를 또 담지 않는다
+        if (alreadyDrafted(batchFingerprint(fresh))) {
+          setOcrStatus("같은 캡쳐입니다. 이 숙제들은 이미 아래에 담겨 있습니다.", true);
+          return;
+        }
+
+        state.drafts.push(...fresh);
+        const preset = applyPreset(fresh);
+        const dup = markDuplicates(fresh);
         setOcrStatus(
           "표에서 숙제 " + sections.length + "개를 만들었습니다 (정확도 " +
             Math.round(confidence) + "%). 내용을 확인해 주세요." +
             (guessed.length
               ? " " + guessed.join(", ") + "의 제출일은 가려져 있어서 표의 다른 날짜로 채웠습니다."
               : "") +
-            preset
+            preset + dup
         );
         renderDrafts();
         return;
@@ -1504,6 +1623,9 @@ export function initMom() {
   renderSourcePicker();
   renderDrafts();
   renderWatch();
+  // 입력 탭에서도 "이미 가지고 있는 숙제"를 대조해야 하므로 처음부터 구독한다
+  // (오프라인에서도 SDK가 들고 있는 값으로 대조된다)
+  subscribeWatch();
   consumeShared();
 
   return {

@@ -824,6 +824,18 @@ textarea.field {
   margin: 12px 0;
 }
 
+/* 전에 보낸 것과 같은 카드. 받는 사람은 꺼 두었고, 켜면 그대로 보내진다. */
+.draft-dup {
+  margin: 10px 0 0;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: #FDF1E3;
+  border: 1px solid #E8C9A3;
+  color: #8A5A2E;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 /* 카드가 좁아서 "개인스케줄"이 두 줄로 깨지지 않게 살짝 조인다 */
 .draft-card .chip {
   padding: 0 6px;
